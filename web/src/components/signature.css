@@ -1,0 +1,14 @@
+.sig { position: relative; display: inline-flex; align-items: baseline; gap: 9px; padding: 13px 8px; font-size: 13px; line-height: 18px; text-decoration: none; color: var(--ink3); }
+.sig-by { font-size: 12px; letter-spacing: .04em; }
+.sig-name { position: relative; font-weight: 560; letter-spacing: .14em; color: transparent; background: linear-gradient(100deg, var(--ink2) 42%, #fff 47%, var(--stone) 52%, var(--ink2) 60%) 100% 0 / 320% 100%; -webkit-background-clip: text; background-clip: text; }
+.sig-name::after { content: ''; position: absolute; left: 0; right: .14em; bottom: -4px; height: 1px; background: linear-gradient(90deg, var(--stone), transparent); transform: scaleX(0); transform-origin: 0 50%; transition: transform .5s var(--out); }
+.sig svg { opacity: 0; transform: translate(-4px, 4px); color: var(--stone); transition: opacity .25s, transform .4s var(--out); }
+.sig:hover .sig-name, .sig:focus-visible .sig-name { background-position: 0 0; transition: background-position .9s var(--out); }
+.sig:hover .sig-name::after, .sig:focus-visible .sig-name::after { transform: none; }
+.sig:hover svg, .sig:focus-visible svg { opacity: 1; transform: none; }
+.colophon { position: relative; display: grid; justify-items: center; margin-top: -60px; padding: 0 var(--gut) 24px; }
+.at-home .colophon, .at-say .colophon { margin-top: 0; padding-top: 40px; background: rgb(9 13 15 / .9); }
+.at-flow .colophon { margin-top: 0; padding-top: 40px; }
+.st-sig { display: flex; justify-content: center; padding: 20px; }
+@media (max-width: 760px) { .colophon { padding-bottom: calc(env(safe-area-inset-bottom) + 92px); } .st-sig { padding-inline: 0; } }
+@media (prefers-reduced-motion: reduce) { .sig *, .sig-name::after { transition: none !important; } }
