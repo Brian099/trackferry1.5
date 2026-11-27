@@ -64,7 +64,7 @@ type Manager struct {
 
 // NewManager loads a previous session from path.
 func NewManager(path string) (*Manager, error) {
-	m := &Manager{path: path, http: &http.Client{Timeout: 30 * time.Second}}
+	m := &Manager{path: path, http: &http.Client{Timeout: 2 * time.Minute}}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return m, nil
@@ -359,7 +359,11 @@ func (m *Manager) enumerate(ctx context.Context, s *Session) ([]library.Song, er
 	for _, a := range albums {
 		songs, err := m.albumSongs(ctx, s, a.ID)
 		if err != nil {
-			return nil, err
+			// One retry: a remote server can hiccup while we walk every album.
+			songs, err = m.albumSongs(ctx, s, a.ID)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("读专辑 %q 失败：%w", a.Name, err)
 		}
 		for _, x := range songs {
 			if t, ok := toLibrarySong(x); ok {
