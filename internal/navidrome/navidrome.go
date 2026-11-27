@@ -57,14 +57,15 @@ type Manager struct {
 
 	mu      sync.RWMutex
 	ses     *Session
-	http    *http.Client
+	http    *http.Client // JSON and images, with a timeout
+	audio   *http.Client // streamed audio: no overall timeout
 	lastErr string
 	cache   []library.Song // the last enumeration, paged out by Songs
 }
 
 // NewManager loads a previous session from path.
 func NewManager(path string) (*Manager, error) {
-	m := &Manager{path: path, http: &http.Client{Timeout: 2 * time.Minute}}
+	m := &Manager{path: path, http: &http.Client{Timeout: 2 * time.Minute}, audio: &http.Client{}}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return m, nil
@@ -380,7 +381,7 @@ func (m *Manager) Open(ctx context.Context, id, rng string) (*http.Response, err
 	if err != nil {
 		return nil, err
 	}
-	return media(ctx, m.http, s, "stream", url.Values{"id": {id}}, rng)
+	return media(ctx, m.audio, s, "stream", url.Values{"id": {id}}, rng)
 }
 
 // Cover opens a cover image.
