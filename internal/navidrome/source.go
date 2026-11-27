@@ -2,6 +2,7 @@ package navidrome
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"trackferry/internal/library"
@@ -19,55 +20,54 @@ func (*Manager) Prefix() string      { return SourcePrefix }
 func (*Manager) CoverPrefix() string { return coverPrefix }
 func (*Manager) Label() string       { return "Navidrome" }
 
-// Songs pages the enumerated library. page 1 triggers the full walk and caches it; later
-// pages slice the cache.
+// Songs pages the library through Navidrome's native API, which lists every song directly.
 func (m *Manager) Songs(ctx context.Context, page, size int) ([]library.Song, int, error) {
-	if page == 1 {
-		s, err := m.session()
-		if err != nil {
-			return nil, 0, err
-		}
-		var all []library.Song
-		if _, err := m.walk(ctx, s, func(t library.Song) error { all = append(all, t); return nil }); err != nil {
-			return nil, 0, err
-		}
-		m.mu.Lock()
-		m.cache = all
-		m.mu.Unlock()
+	s, err := m.session()
+	if err != nil {
+		return nil, 0, err
 	}
-	m.mu.RLock()
-	all := m.cache
-	m.mu.RUnlock()
-	total := len(all)
 	start := (page - 1) * size
-	if start >= total {
-		return nil, total, nil
+	songs, total, err := m.nativeSongs(ctx, s, start, size)
+	if errors.Is(err, ErrAuth) {
+		if token, e := m.nativeLogin(ctx, s); e == nil {
+			s.Token = token
+			m.keepToken(token)
+			songs, total, err = m.nativeSongs(ctx, s, start, size)
+		}
 	}
-	end := min(start+size, total)
-	return all[start:end], total, nil
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]library.Song, 0, len(songs))
+	for _, x := range songs {
+		out = append(out, nativeToLibrary(x))
+	}
+	return out, total, nil
 }
 
-// toLibrarySong converts one Navidrome song; ok is false for what speakers cannot play.
-func toLibrarySong(s song) (library.Song, bool) {
-	if s.IsDir || s.ID == "" || strings.TrimSpace(s.Title) == "" {
-		return library.Song{}, false
+// nativeToLibrary converts one native song; Format stays empty for what speakers cannot
+// play, and songs whose file is missing are skipped.
+func nativeToLibrary(s nativeSong) library.Song {
+	if s.Missing {
+		return library.Song{}
 	}
 	format := library.FormatOf(s.Suffix)
-	if format == "" {
-		return library.Song{}, false
+	artist := strings.TrimSpace(s.Artist)
+	if artist == "" {
+		artist = strings.TrimSpace(s.AlbumArtist)
 	}
 	return library.Song{
 		ID:         s.ID,
 		Title:      s.Title,
-		Artist:     s.Artist,
+		Artist:     artist,
 		Album:      s.Album,
 		AlbumID:    s.AlbumID,
-		Cover:      s.CoverArt,
-		DurationMS: int64(s.Duration) * 1000,
+		Cover:      s.ID, // getCoverArt accepts the song id
+		DurationMS: int64(s.Duration * 1000),
 		Format:     format,
 		Size:       s.Size,
-		SampleRate: s.SamplingRate,
+		SampleRate: s.SampleRate,
 		Bits:       s.BitDepth,
 		Root:       "Navidrome",
-	}, true
+	}
 }

@@ -1,9 +1,10 @@
-// Package navidrome talks to a Navidrome (Subsonic API) server: the track index, covers,
-// playlists and the audio itself. Subsonic is stateless, so the account's password is kept
-// to sign each request; it lives in the private file, never in logs.
+// Package navidrome talks to a Navidrome server. The song index comes from Navidrome's own
+// native API (one page lists every song), while streaming, covers and playlists use the
+// Subsonic API. Both sign in with the account's password, which lives in the private file.
 package navidrome
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,7 +26,6 @@ import (
 const (
 	apiVersion = "1.16.1"
 	clientName = "trackferry"
-	pageMax    = 500 // albums per getAlbumList2 page
 )
 
 // Errors callers tell apart.
@@ -43,11 +43,13 @@ type Status struct {
 	Error    string    `json:"error,omitempty"`
 }
 
-// Session is what a login leaves behind.
+// Session is what a login leaves behind. The password signs Subsonic requests; the token
+// signs native requests.
 type Session struct {
 	Base     string    `json:"base"`
 	User     string    `json:"user"`
-	Password string    `json:"password"` // kept to sign stateless Subsonic requests
+	Password string    `json:"password"`
+	Token    string    `json:"token,omitempty"`
 	LinkedAt time.Time `json:"linked_at"`
 }
 
@@ -60,7 +62,6 @@ type Manager struct {
 	http    *http.Client // JSON and images, with a timeout
 	audio   *http.Client // streamed audio: no overall timeout
 	lastErr string
-	cache   []library.Song // the last enumeration, paged out by Songs
 }
 
 // NewManager loads a previous session from path.
@@ -100,7 +101,7 @@ func Base(s string) (string, error) {
 	return strings.TrimRight(u.Scheme+"://"+u.Host, "/"), nil
 }
 
-// Login links an account and verifies it with one ping.
+// Login links an account, verifies it with one Subsonic ping and takes the native token.
 func (m *Manager) Login(ctx context.Context, base, user, password string) error {
 	base, err := Base(base)
 	if err != nil {
@@ -114,19 +115,16 @@ func (m *Manager) Login(ctx context.Context, base, user, password string) error 
 	if err := m.ping(ctx, s); err != nil {
 		return err
 	}
-	raw, _ := json.Marshal(s)
-	if err := os.MkdirAll(filepath.Dir(m.path), 0o700); err != nil {
+	token, err := m.nativeLogin(ctx, s)
+	if err != nil {
 		return err
 	}
-	tmp := m.path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, m.path); err != nil {
+	s.Token = token
+	if err := m.saveSession(s); err != nil {
 		return err
 	}
 	m.mu.Lock()
-	m.ses, m.lastErr, m.cache = s, "", nil
+	m.ses, m.lastErr = s, ""
 	m.mu.Unlock()
 	return nil
 }
@@ -134,7 +132,7 @@ func (m *Manager) Login(ctx context.Context, base, user, password string) error 
 // Logout forgets the session.
 func (m *Manager) Logout() error {
 	m.mu.Lock()
-	m.ses, m.lastErr, m.cache = nil, "", nil
+	m.ses, m.lastErr = nil, ""
 	m.mu.Unlock()
 	if err := os.Remove(m.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return err
@@ -162,7 +160,6 @@ func (m *Manager) Linked() bool {
 // Ready reports whether audio can be expected to open.
 func (m *Manager) Ready() bool { return m.Linked() }
 
-// session returns the session, or an error.
 func (m *Manager) session() (*Session, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -172,19 +169,70 @@ func (m *Manager) session() (*Session, error) {
 	return m.ses, nil
 }
 
-// ping asks the server whether the account is accepted.
+func (m *Manager) saveSession(s *Session) error {
+	raw, _ := json.Marshal(s)
+	if err := os.MkdirAll(filepath.Dir(m.path), 0o700); err != nil {
+		return err
+	}
+	tmp := m.path + ".tmp"
+	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, m.path)
+}
+
+// keepToken persists a renewed native token.
+func (m *Manager) keepToken(token string) {
+	m.mu.Lock()
+	if m.ses != nil {
+		m.ses.Token = token
+	}
+	s := m.ses
+	m.mu.Unlock()
+	if s != nil {
+		m.saveSession(s)
+	}
+}
+
+// ping asks the Subsonic API whether the account is accepted.
 func (m *Manager) ping(ctx context.Context, s *Session) error {
 	var inner struct {
-		Status string `json:"status"`
+		Status string  `json:"status"`
 		Error  *subErr `json:"error"`
 	}
 	if err := get(ctx, m.http, s, "ping", nil, &inner); err != nil {
 		return err
 	}
-	if err := check(inner.Status, inner.Error); err != nil {
-		return err
+	return check(inner.Status, inner.Error)
+}
+
+// nativeLogin signs in to Navidrome's own API and returns the bearer token.
+func (m *Manager) nativeLogin(ctx context.Context, s *Session) (string, error) {
+	body, _ := json.Marshal(map[string]string{"username": s.User, "password": s.Password})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(s.Base, "/")+"/auth/login", bytes.NewReader(body))
+	if err != nil {
+		return "", err
 	}
-	return nil
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := m.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("连不上 Navidrome：%w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", ErrAuth
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Navidrome 返回 HTTP %d", resp.StatusCode)
+	}
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	var out struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil || out.Token == "" {
+		return "", errors.New("Navidrome 没有返回登录凭证")
+	}
+	return out.Token, nil
 }
 
 // subErr is a Subsonic error object.
@@ -245,7 +293,7 @@ func get(ctx context.Context, hc *http.Client, s *Session, endpoint string, q ur
 	return json.Unmarshal(outer.SubsonicResponse, inner)
 }
 
-// media opens a binary endpoint (stream, cover). Refusals arrive as JSON.
+// media opens a binary Subsonic endpoint (stream, cover).
 func media(ctx context.Context, hc *http.Client, s *Session, endpoint string, q url.Values, rng string) (*http.Response, error) {
 	q.Set("u", s.User)
 	q.Set("p", s.Password)
@@ -275,15 +323,54 @@ func media(ctx context.Context, hc *http.Client, s *Session, endpoint string, q 
 	return resp, nil
 }
 
-// album is one album of getAlbumList2.
-type album struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Artist   string `json:"artist"`
-	CoverArt string `json:"coverArt"`
+// nativeSong is one track of the native /api/song list.
+type nativeSong struct {
+	ID          string  `json:"id"`
+	Title       string  `json:"title"`
+	Album       string  `json:"album"`
+	AlbumID     string  `json:"albumId"`
+	Artist      string  `json:"artist"`
+	AlbumArtist string  `json:"albumArtist"`
+	Suffix      string  `json:"suffix"`
+	Duration    float64 `json:"duration"` // seconds
+	Size        int64   `json:"size"`
+	SampleRate  int     `json:"sampleRate"`
+	BitDepth    int     `json:"bitDepth"`
+	Missing     bool    `json:"missing"`
 }
 
-// song is one track of getAlbum.
+// nativeSongs reads one page of the song list and its total.
+func (m *Manager) nativeSongs(ctx context.Context, s *Session, start, size int) ([]nativeSong, int, error) {
+	u := fmt.Sprintf("%s/api/song?_start=%d&_end=%d&_sort=id", strings.TrimRight(s.Base, "/"), start, start+size)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	req.Header.Set("X-ND-Authorization", "Bearer "+s.Token)
+	resp, err := m.http.Do(req)
+	if err != nil {
+		return nil, 0, fmt.Errorf("连不上 Navidrome：%w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, 0, ErrAuth
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, 0, fmt.Errorf("Navidrome 返回 HTTP %d", resp.StatusCode)
+	}
+	total, _ := strconv.Atoi(resp.Header.Get("X-Total-Count"))
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
+	if err != nil {
+		return nil, 0, err
+	}
+	var songs []nativeSong
+	if err := json.Unmarshal(raw, &songs); err != nil {
+		return nil, 0, errors.New("Navidrome 返回了看不懂的内容")
+	}
+	return songs, total, nil
+}
+
+// song is one track of the Subsonic API (used for playlists).
 type song struct {
 	ID           string `json:"id"`
 	Title        string `json:"title"`
@@ -303,139 +390,6 @@ type song struct {
 type Playlist struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-}
-
-// albumList pages the alphabetical album list.
-func (m *Manager) albumList(ctx context.Context, s *Session, offset, size int) ([]album, error) {
-	var inner struct {
-		Status     string  `json:"status"`
-		Error      *subErr `json:"error"`
-		AlbumList2 struct {
-			Album []album `json:"album"`
-		} `json:"albumList2"`
-	}
-	q := url.Values{"type": {"alphabeticalByName"}, "size": {strconv.Itoa(size)}, "offset": {strconv.Itoa(offset)}}
-	if err := get(ctx, m.http, s, "getAlbumList2", q, &inner); err != nil {
-		return nil, err
-	}
-	if err := check(inner.Status, inner.Error); err != nil {
-		return nil, err
-	}
-	return inner.AlbumList2.Album, nil
-}
-
-// albumSongs reads one album's songs.
-func (m *Manager) albumSongs(ctx context.Context, s *Session, id string) ([]song, error) {
-	var inner struct {
-		Status string  `json:"status"`
-		Error  *subErr `json:"error"`
-		Album  struct {
-			Song []song `json:"song"`
-		} `json:"album"`
-	}
-	if err := get(ctx, m.http, s, "getAlbum", url.Values{"id": {id}}, &inner); err != nil {
-		return nil, err
-	}
-	if err := check(inner.Status, inner.Error); err != nil {
-		return nil, err
-	}
-	return inner.Album.Song, nil
-}
-
-// walk reads every album and reports each playable song. Subsonic has no "all songs" call,
-// so this is one request per album, fetched in parallel so a large or remote library does
-// not take forever; reporting as it goes keeps sync progress live.
-func (m *Manager) walk(ctx context.Context, s *Session, add func(library.Song) error) (int, error) {
-	var albums []album
-	for offset := 0; ; offset += pageMax {
-		batch, err := m.albumList(ctx, s, offset, pageMax)
-		if err != nil {
-			return 0, err
-		}
-		albums = append(albums, batch...)
-		if len(batch) < pageMax {
-			break
-		}
-	}
-
-	const workers = 8
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	type result struct {
-		name  string
-		songs []song
-		err   error
-	}
-	jobs := make(chan album)
-	results := make(chan result, workers)
-	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for a := range jobs {
-				songs, err := m.albumSongs(ctx, s, a.ID)
-				if err != nil {
-					songs, err = m.albumSongs(ctx, s, a.ID) // one retry
-				}
-				select {
-				case results <- result{a.Name, songs, err}:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
-	}
-	go func() {
-		defer close(jobs)
-		for _, a := range albums {
-			select {
-			case jobs <- a:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	total := 0
-	var firstErr error
-	for r := range results {
-		if r.err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("读专辑 %q 失败：%w", r.name, r.err)
-			}
-			cancel()
-			continue
-		}
-		for _, x := range r.songs {
-			if t, ok := toLibrarySong(x); ok {
-				total++
-				if err := add(t); err != nil {
-					firstErr = err
-					cancel()
-					break
-				}
-			}
-		}
-	}
-	if firstErr != nil {
-		return 0, firstErr
-	}
-	return total, nil
-}
-
-// Walk reports every playable song as it is read.
-func (m *Manager) Walk(ctx context.Context, add func(library.Song) error) (int, error) {
-	s, err := m.session()
-	if err != nil {
-		return 0, err
-	}
-	return m.walk(ctx, s, add)
 }
 
 // Open opens a song's audio.
@@ -505,9 +459,34 @@ func (m *Manager) PlaylistSongs(ctx context.Context, id string) ([]library.Song,
 	}
 	out := []library.Song{}
 	for _, e := range inner.Playlist.Entry {
-		if t, ok := toLibrarySong(e.Song); ok {
+		if t, ok := subsonicToLibrary(e.Song); ok {
 			out = append(out, t)
 		}
 	}
 	return out, nil
+}
+
+// subsonicToLibrary converts one Subsonic playlist song.
+func subsonicToLibrary(s song) (library.Song, bool) {
+	if s.IsDir || s.ID == "" || strings.TrimSpace(s.Title) == "" {
+		return library.Song{}, false
+	}
+	format := library.FormatOf(s.Suffix)
+	if format == "" {
+		return library.Song{}, false
+	}
+	return library.Song{
+		ID:         s.ID,
+		Title:      s.Title,
+		Artist:     s.Artist,
+		Album:      s.Album,
+		AlbumID:    s.AlbumID,
+		Cover:      s.CoverArt,
+		DurationMS: int64(s.Duration) * 1000,
+		Format:     format,
+		Size:       s.Size,
+		SampleRate: s.SamplingRate,
+		Bits:       s.BitDepth,
+		Root:       "Navidrome",
+	}, true
 }
