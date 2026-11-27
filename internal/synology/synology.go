@@ -125,6 +125,9 @@ func (m *Manager) Login(ctx context.Context, base, user, password, otp string) e
 	m.mu.Lock()
 	m.apis = apis
 	m.mu.Unlock()
+	if _, ok := apis["SYNO.AudioStation.Song"]; !ok {
+		return errors.New("这台群晖没有 Audio Station 的歌曲接口：请确认已安装并启用 Audio Station，且地址填 DSM 端口（5000/5001）或 Audio Station 端口（5002）")
+	}
 	auth, ok := apis["SYNO.API.Auth"]
 	if !ok {
 		return errors.New("这台群晖没有登录接口")
