@@ -27,8 +27,8 @@ func (m *Manager) Songs(ctx context.Context, page, size int) ([]library.Song, in
 		if err != nil {
 			return nil, 0, err
 		}
-		all, err := m.enumerate(ctx, s)
-		if err != nil {
+		var all []library.Song
+		if _, err := m.walk(ctx, s, func(t library.Song) error { all = append(all, t); return nil }); err != nil {
 			return nil, 0, err
 		}
 		m.mu.Lock()

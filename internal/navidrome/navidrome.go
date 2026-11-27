@@ -342,21 +342,21 @@ func (m *Manager) albumSongs(ctx context.Context, s *Session, id string) ([]song
 	return inner.Album.Song, nil
 }
 
-// enumerate reads every album and its songs. Subsonic has no "all songs" call, so this is
-// one request per album.
-func (m *Manager) enumerate(ctx context.Context, s *Session) ([]library.Song, error) {
+// walk reads every album and reports each playable song. Subsonic has no "all songs" call,
+// so this is one request per album; reporting as it goes keeps sync progress live.
+func (m *Manager) walk(ctx context.Context, s *Session, add func(library.Song) error) (int, error) {
 	var albums []album
 	for offset := 0; ; offset += pageMax {
 		batch, err := m.albumList(ctx, s, offset, pageMax)
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
 		albums = append(albums, batch...)
 		if len(batch) < pageMax {
 			break
 		}
 	}
-	out := []library.Song{}
+	total := 0
 	for _, a := range albums {
 		songs, err := m.albumSongs(ctx, s, a.ID)
 		if err != nil {
@@ -364,15 +364,27 @@ func (m *Manager) enumerate(ctx context.Context, s *Session) ([]library.Song, er
 			songs, err = m.albumSongs(ctx, s, a.ID)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("读专辑 %q 失败：%w", a.Name, err)
+			return 0, fmt.Errorf("读专辑 %q 失败：%w", a.Name, err)
 		}
 		for _, x := range songs {
 			if t, ok := toLibrarySong(x); ok {
-				out = append(out, t)
+				total++
+				if err := add(t); err != nil {
+					return 0, err
+				}
 			}
 		}
 	}
-	return out, nil
+	return total, nil
+}
+
+// Walk reports every playable song as it is read.
+func (m *Manager) Walk(ctx context.Context, add func(library.Song) error) (int, error) {
+	s, err := m.session()
+	if err != nil {
+		return 0, err
+	}
+	return m.walk(ctx, s, add)
 }
 
 // Open opens a song's audio.

@@ -30,3 +30,9 @@ type Source interface {
 	Linked() bool        // a session exists (it may have expired)
 	Songs(ctx context.Context, page, size int) ([]Song, int, error)
 }
+
+// Walker is a source that has no "page the whole library" call. It reports each song as it
+// is read, so the sync progress is live; it returns the number of songs reported.
+type Walker interface {
+	Walk(ctx context.Context, add func(Song) error) (int, error)
+}

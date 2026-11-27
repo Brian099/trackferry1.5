@@ -26,46 +26,71 @@ func (l *Library) syncSource(ctx context.Context, id int64, rep *Report, src Sou
 	roots := map[string]int{}
 	got, total := 0, 0
 	seen := make(map[string]bool, len(known))
-	for page := 1; ; page++ {
-		songs, n, err := src.Songs(ctx, page, pageSize)
+	var changed []store.TrackRow
+	flush := func() error {
+		if len(changed) == 0 {
+			return nil
+		}
+		err := l.st.SaveTracks(ctx, id, changed, nil)
+		changed = changed[:0]
+		return err
+	}
+	add := func(s Song) error {
+		l.mu.Lock()
+		got++
+		l.seen++
+		t, ok := songRow(src, s)
+		if !ok {
+			rep.Skipped++
+			l.mu.Unlock()
+			return nil
+		}
+		i, ok := roots[t.Root]
+		if !ok {
+			i = len(rep.Roots)
+			roots[t.Root] = i
+			rep.Roots = append(rep.Roots, RootReport{Name: t.Root, Samples: []string{}})
+		}
+		rep.Roots[i].Tracks++
+		old := known[t.Path]
+		t.ID = old.ID
+		seen[t.Path] = true
+		if old.ID == 0 || old != t {
+			changed = append(changed, t)
+			rep.Added++
+		}
+		l.mu.Unlock()
+		if len(changed) >= batch {
+			return flush()
+		}
+		return nil
+	}
+
+	if w, ok := src.(Walker); ok {
+		n, err := w.Walk(ctx, add)
 		if err != nil {
 			return err
 		}
-		var changed []store.TrackRow
-		l.mu.Lock()
 		total = n
-		for _, s := range songs {
-			got++
-			l.seen++
-			t, ok := songRow(src, s)
-			if !ok {
-				rep.Skipped++
-				continue
-			}
-			i, ok := roots[t.Root]
-			if !ok {
-				i = len(rep.Roots)
-				roots[t.Root] = i
-				rep.Roots = append(rep.Roots, RootReport{Name: t.Root, Samples: []string{}})
-			}
-			rep.Roots[i].Tracks++
-			old := known[t.Path]
-			t.ID = old.ID
-			seen[t.Path] = true
-			if old.ID == 0 || old != t {
-				changed = append(changed, t)
-				rep.Added++
-			}
-		}
-		l.mu.Unlock()
-		if len(changed) > 0 {
-			if err := l.st.SaveTracks(ctx, id, changed, nil); err != nil {
+	} else {
+		for page := 1; ; page++ {
+			songs, n, err := src.Songs(ctx, page, pageSize)
+			if err != nil {
 				return err
 			}
+			total = n
+			for _, s := range songs {
+				if err := add(s); err != nil {
+					return err
+				}
+			}
+			if len(songs) < pageSize || got >= total {
+				break
+			}
 		}
-		if len(songs) < pageSize || got >= total {
-			break
-		}
+	}
+	if err := flush(); err != nil {
+		return err
 	}
 	if got < total {
 		return fmt.Errorf("%s 说有 %d 首，只读到 %d 首", src.Label(), total, got)
