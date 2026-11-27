@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type LibraryStatus } from '../api';
 import { Setting } from './Setting';
-import { NotesIcon } from './Setting';
 import { clock, day } from '../copy';
+import goldfish from '../assets/brand/goldfish.png';
 
 /** The merged library: how many songs there are and when it last synced. */
 export function LibraryCard() {
@@ -38,7 +38,7 @@ export function LibraryCard() {
   const n = (v: number) => v.toLocaleString('zh-CN');
   const last = lib?.last;
   return (
-    <Setting id="library" icon={<NotesIcon />} title="曲库" light={last?.error ? 'bad' : 'ok'} state={running ? '同步中' : lib ? `${n(lib.tracks)} 首` : ''}
+    <Setting id="library" icon={<img className="src-icon" src={goldfish} alt="" draggable={false} />} title="曲库" light={last?.error ? 'bad' : 'ok'} state={running ? '同步中' : lib ? `${n(lib.tracks)} 首` : ''}
       says="飞牛、群晖、Navidrome 和本地文件合并成一份曲库"
       actions={<button className="btn" disabled={running || busy} onClick={() => act(api.scanLibrary)}>{running ? <><span className="spinner spinner-tiny" />正在同步</> : '立即同步'}</button>}>
       {!lib && !error && <span className="spinner" />}
