@@ -231,24 +231,6 @@ func (s *Server) libraryPlaylists(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"playlists": out})
 }
 
-// libraryPlaylistAdd puts a song into a playlist of 飞牛音乐.
-func (s *Server) libraryPlaylistAdd(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		TrackID int64 `json:"track_id"`
-	}
-	if !readJSON(w, r, &req) {
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-	defer cancel()
-	changed, err := s.Router.PutIn(ctx, req.TrackID, r.PathValue("guid"))
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "feiniu", "没能加入歌单："+err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"changed": changed})
-}
-
 func (s *Server) libraryPlaylist(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()

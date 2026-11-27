@@ -102,6 +102,9 @@ func (x *index) song(title, artist, request string) Result {
 			continue
 		}
 		score := formatRank(t) + 20*names.VersionPenalty(t.Title+" "+t.Album, request)
+		if t.GUID == "" {
+			score += 3 // a remote source beats a local file when all else is equal
+		}
 		if names.Norm(t.Title) != want {
 			score += 10
 		}

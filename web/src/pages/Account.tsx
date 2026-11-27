@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError, type Account as AccountT, type LinkResult, type UpdateStatus } from '../api';
 import { Notice } from '../components/Notice';
 import { FeiniuCard } from '../components/Feiniu';
+import { RemoteCard } from '../components/RemoteCard';
 import { HomeAssistant } from '../components/HomeAssistant';
 import { LockIcon, Setting, type Light } from '../components/Setting';
 import { SourceIcon } from '../components/SourceIcon';
@@ -16,7 +17,7 @@ import fish from '../assets/brand/fish-mark.webp';
 import word from '../assets/brand/wordmark.svg';
 import './settings.css';
 
-const parts = [['feiniu', '飞牛音乐'], ['xiaomi', '小米账号'], ['sources', '线上音源'], ['playing', '连续播放'], ['home', 'Home Assistant'], ['password', '管理密码'], ['about', '关于']] as const;
+const parts = [['feiniu', '飞牛音乐'], ['synology', '群晖音乐'], ['navidrome', 'Navidrome'], ['xiaomi', '小米账号'], ['sources', '线上音源'], ['playing', '连续播放'], ['home', 'Home Assistant'], ['password', '管理密码'], ['about', '关于']] as const;
 type Part = (typeof parts)[number][0];
 
 export function Account({ account, build, startScanning, onChanged, onLogout }: {
@@ -56,6 +57,8 @@ export function Account({ account, build, startScanning, onChanged, onLogout }: 
 
   const [lights, setLights] = useState<Partial<Record<Part, Light>>>({});
   const feiniuLight = useCallback((l: Light) => setLights((x) => ({ ...x, feiniu: l })), []);
+  const synologyLight = useCallback((l: Light) => setLights((x) => ({ ...x, synology: l })), []);
+  const navidromeLight = useCallback((l: Light) => setLights((x) => ({ ...x, navidrome: l })), []);
   const sourceLight = useCallback((l: Light) => setLights((x) => ({ ...x, sources: l })), []);
   const homeLight = useCallback((l: Light) => setLights((x) => ({ ...x, home: l })), []);
   const aboutLight = useCallback((l: Light | null) => setLights((x) => ({ ...x, about: l ?? undefined })), []);
@@ -86,6 +89,16 @@ export function Account({ account, build, startScanning, onChanged, onLogout }: 
       {explanation && <Notice tone={explanation.tone} title={`已关联新的登录，${explanation.title}`}>{explanation.body && <p>{explanation.body}</p>}</Notice>}
 
       <FeiniuCard onLight={feiniuLight} />
+
+      <RemoteCard id="synology" title="群晖音乐" icon={<SourceIcon name="library" />} note="群晖 Audio Station 的曲库，和飞牛合并成一份"
+        otp get={() => api.synology().then((r) => r.synology)}
+        link={(base, user, password, otp) => api.linkSynology(base, user, password, otp)}
+        unlink={api.unlinkSynology} onLight={synologyLight} />
+
+      <RemoteCard id="navidrome" title="Navidrome" icon={<SourceIcon name="library" />} note="Navidrome（Subsonic）的曲库，和飞牛合并成一份"
+        get={() => api.navidrome().then((r) => r.navidrome)}
+        link={(base, user, password) => api.linkNavidrome(base, user, password)}
+        unlink={api.unlinkNavidrome} onLight={navidromeLight} />
 
       <Setting id="xiaomi" force={scanning} icon={<SourceIcon name="xiaomi" />} title="小米账号" light={mine} state={account.linked ? (account.relink_required ? '登录已失效' : '已关联') : '未关联'}
         says={account.last_sync && account.linked ? explainSync(account.last_sync).title : '用来读取音箱听到的话和控制播放'}

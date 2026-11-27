@@ -18,7 +18,6 @@ import (
 type nas struct {
 	off   bool
 	lists []feiniu.Playlist
-	put   []string
 }
 
 func song(g string) feiniu.Song {
@@ -27,9 +26,17 @@ func song(g string) feiniu.Song {
 	return s
 }
 
-func (n *nas) Linked() bool { return true }
-func (n *nas) Songs(context.Context, int, int) ([]feiniu.Song, int, error) {
-	return []feiniu.Song{song("a"), song("b"), song("c")}, 3, nil
+func libSong(g string) library.Song {
+	return library.Song{ID: g, Title: "歌" + g, Root: "音乐", Format: "mp3", DurationMS: 200000}
+}
+
+func (n *nas) Linked() bool      { return true }
+func (n *nas) ID() string        { return feiniu.SourceID }
+func (n *nas) Prefix() string    { return feiniu.SourcePrefix }
+func (n *nas) CoverPrefix() string { return "" }
+func (n *nas) Label() string     { return "飞牛音乐" }
+func (n *nas) Songs(context.Context, int, int) ([]library.Song, int, error) {
+	return []library.Song{libSong("a"), libSong("b"), libSong("c")}, 3, nil
 }
 func (n *nas) Favorites(context.Context) ([]feiniu.Song, error) {
 	if n.off {
@@ -44,10 +51,6 @@ func (n *nas) PlaylistSongs(_ context.Context, g string) ([]feiniu.Song, error) 
 	}
 	return []feiniu.Song{song("a"), song("b")}, nil
 }
-func (n *nas) PutInPlaylist(_ context.Context, p, g string, on bool) (bool, error) {
-	n.put = append(n.put, p+g)
-	return true, nil
-}
 
 func TestLists(t *testing.T) {
 	ctx, log := context.Background(), slog.New(slog.DiscardHandler)
@@ -58,7 +61,7 @@ func TestLists(t *testing.T) {
 	defer st.Close()
 	n := &nas{lists: []feiniu.Playlist{{GUID: "p", Name: "测试"}, {GUID: "empty", Name: "空的"}, {GUID: "q", Name: "周末开车"}}}
 	lib := library.New("", st, log)
-	lib.Remote = n
+	lib.Sources = []library.Source{n}
 	if err := lib.Scan(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -91,12 +94,6 @@ func TestLists(t *testing.T) {
 	id := ask("播放测试歌单").TrackID
 	if rt, ok := r.Next(id, "x"); !ok || rt.Decision != Local || rt.Match() == nil || rt.List != "x" {
 		t.Error("next")
-	}
-	if list, ok, err := r.Put(ctx, id, "测试", true); err != nil || !ok || list != "测试" || len(n.put) != 1 {
-		t.Error(list, err, n.put)
-	}
-	if _, _, err := r.Put(ctx, id, "没有", true); err == nil || len(n.put) != 1 {
-		t.Error("put into nothing")
 	}
 	n.off = true // the last sync's favourites are used
 	if rt := ask("播放我的收藏"); !strings.Contains(rt.Reason, "没能读到") {

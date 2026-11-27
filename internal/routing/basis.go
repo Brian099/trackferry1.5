@@ -53,12 +53,6 @@ func Heard(query string, in intent.Intent) string {
 		}
 		return strings.Join(append(parts, "连着放"+what), "，")
 	case intent.KindFavorite:
-		switch in.Control {
-		case intent.ListAdd:
-			return "把正在放的歌加入歌单 " + in.Title
-		case intent.ListRemove:
-			return "把正在放的歌移出歌单 " + in.Title
-		}
 		if in.Control == "remove" {
 			return "取消收藏正在放的歌"
 		}

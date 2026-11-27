@@ -3,45 +3,41 @@ package library
 import (
 	"context"
 	"fmt"
-	"path"
 	"slices"
 	"strings"
 
-	"trackferry/internal/feiniu"
 	"trackferry/internal/store"
 )
 
-// Remote is a library that lists its own songs (feiniu.Manager).
-type Remote interface {
-	Linked() bool
-	Songs(ctx context.Context, page, size int) ([]feiniu.Song, int, error)
-}
-
-// RemotePrefix marks the Path of a song that 飞牛音乐 holds.
-const RemotePrefix = "fn:"
-
 const pageSize = 200
 
-// sync mirrors 飞牛音乐's index. Nothing is removed unless every page was read.
-func (l *Library) sync(ctx context.Context, id int64, rep *Report, known map[string]store.TrackRow) error {
-	l.mu.Lock()
-	rep.Source = "feiniu"
-	l.mu.Unlock()
+// syncSource mirrors one source's index. Only that source's tracks are removed, so a
+// source that fails or goes away never empties the others.
+func (l *Library) syncSource(ctx context.Context, id int64, rep *Report, src Source) error {
+	known := map[string]store.TrackRow{}
+	l.mu.RLock()
+	for _, t := range l.idx.rows {
+		if strings.HasPrefix(t.Path, src.Prefix()) {
+			known[t.Path] = t
+		}
+	}
+	l.mu.RUnlock()
+
 	roots := map[string]int{}
 	got, total := 0, 0
 	seen := make(map[string]bool, len(known))
 	for page := 1; ; page++ {
-		songs, n, err := l.Remote.Songs(ctx, page, pageSize)
+		songs, n, err := src.Songs(ctx, page, pageSize)
 		if err != nil {
 			return err
 		}
 		var changed []store.TrackRow
 		l.mu.Lock()
-		total, rep.Total = n, n
+		total = n
 		for _, s := range songs {
 			got++
 			l.seen++
-			t, ok := remoteRow(s)
+			t, ok := songRow(src, s)
 			if !ok {
 				rep.Skipped++
 				continue
@@ -72,72 +68,68 @@ func (l *Library) sync(ctx context.Context, id int64, rep *Report, known map[str
 		}
 	}
 	if got < total {
-		return fmt.Errorf("飞牛音乐说有 %d 首，只读到 %d 首", total, got)
+		return fmt.Errorf("%s 说有 %d 首，只读到 %d 首", src.Label(), total, got)
 	}
-	var n int64
 	var gone []int64
 	for p, t := range known {
 		if !seen[p] {
 			gone = append(gone, t.ID)
 		}
 	}
+	var removed int64
 	for part := range slices.Chunk(gone, 500) {
 		if err := l.st.DropTracks(ctx, part); err != nil {
 			return err
 		}
-		n += int64(len(part))
+		removed += int64(len(part))
 	}
-	l.mu.Lock()
-	rep.Removed = n
-	same := rep.Added == 0 && n == 0
-	l.mu.Unlock()
-	if same {
-		return nil // the index in memory is this one
+	if removed > 0 {
+		l.mu.Lock()
+		rep.Removed += removed
+		l.mu.Unlock()
 	}
-	return l.Load(ctx)
+	return nil
 }
 
-// remoteRow converts a song; ok is false for what speakers cannot be given on its own.
-func remoteRow(s feiniu.Song) (store.TrackRow, bool) {
-	format := formats[strings.ToLower(path.Ext(s.Audio.Path))]
-	if format == "" {
-		format = formats["."+strings.ToLower(s.Audio.Format)]
-	}
-	if format == "" {
-		format = formats["."+strings.ToLower(s.Audio.Container)]
-	}
-	if format == "" || s.Cue || s.GUID == "" || strings.TrimSpace(s.Title) == "" {
+// songRow converts a source-neutral song into an indexed row; ok is false for what cannot
+// be played on its own (unknown format, no id, no title). Sources already drop such songs,
+// so this is only a safety net.
+func songRow(src Source, s Song) (store.TrackRow, bool) {
+	if s.Format == "" || s.ID == "" || strings.TrimSpace(s.Title) == "" {
 		return store.TrackRow{}, false
 	}
-	if strings.Contains(strings.ToLower(s.Audio.Codec), "dts") {
-		return store.TrackRow{}, false
+	root := s.Root
+	if root == "" {
+		root = src.Label()
 	}
-	var as []string
-	for _, a := range s.Artists {
-		if a.Name != "" {
-			as = append(as, a.Name)
-		}
-	}
-	t := store.TrackRow{Path: RemotePrefix + s.GUID, GUID: s.GUID, Root: libraryOf(s.Audio.Path), Size: s.Audio.Size, Title: s.Title,
-		Artist: strings.Join(as, "/"), Cover: s.CoverID, DurationMS: int64(s.Duration), Format: format,
-		SampleRate: s.Audio.SampleRate, Bits: s.Audio.Bits, Tagged: true, Favorite: s.Favorite, AddedMS: s.Created * 1000}
-	if strings.EqualFold(s.Audio.Codec, "alac") {
-		t.Format = "alac"
-	}
-	if s.Album != nil {
-		t.Album, t.AlbumID = s.Album.Name, s.Album.GUID
-		if t.Cover == "" {
-			t.Cover = s.Album.CoverID
-		}
-	}
-	return t, true
+	return store.TrackRow{
+		Path:       src.Prefix() + s.ID,
+		GUID:       s.ID,
+		Root:       root,
+		Size:       s.Size,
+		Title:      s.Title,
+		Artist:     s.Artist,
+		Album:      s.Album,
+		AlbumID:    s.AlbumID,
+		Cover:      src.CoverPrefix() + s.Cover,
+		DurationMS: s.DurationMS,
+		Format:     s.Format,
+		SampleRate: s.SampleRate,
+		Bits:       s.Bits,
+		Tagged:     true,
+		Favorite:   s.Favorite,
+		AddedMS:    s.AddedMS,
+	}, true
 }
 
-// libraryOf names the shared folder a song lies in: "/vol1/1000/音乐/…" is 音乐.
-func libraryOf(p string) string {
-	f := strings.Split(strings.Trim(p, "/"), "/")
-	if len(f) > 3 && strings.HasPrefix(f[0], "vol") {
-		return f[2]
+// SourceOf returns the source a track's path belongs to, or nil.
+func (l *Library) SourceOf(path string) Source {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	for _, src := range l.Sources {
+		if strings.HasPrefix(path, src.Prefix()) {
+			return src
+		}
 	}
-	return "飞牛音乐"
+	return nil
 }

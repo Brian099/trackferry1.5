@@ -103,7 +103,7 @@ func (s *Store) SetFavorite(ctx context.Context, id int64, on bool) error {
 // DropUnseen removes a root's tracks the scan did not see. Call it only for roots the scan
 // read completely: an unreadable or unmounted folder must not empty the index.
 func (s *Store) DropUnseen(ctx context.Context, scanID int64, root string) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM tracks WHERE root = ? AND scan_id <> ?`, root, scanID)
+	res, err := s.db.ExecContext(ctx, `DELETE FROM tracks WHERE root = ? AND scan_id <> ? AND guid = ''`, root, scanID)
 	if err != nil {
 		return 0, err
 	}
@@ -112,7 +112,7 @@ func (s *Store) DropUnseen(ctx context.Context, scanID int64, root string) (int6
 
 // DropRootsExcept removes the tracks of roots that no longer exist in the music directory.
 func (s *Store) DropRootsExcept(ctx context.Context, roots []string) error {
-	rows, err := s.rd.QueryContext(ctx, `SELECT DISTINCT root FROM tracks`)
+	rows, err := s.rd.QueryContext(ctx, `SELECT DISTINCT root FROM tracks WHERE guid = ''`)
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (s *Store) DropRootsExcept(ctx context.Context, roots []string) error {
 	}
 	rows.Close()
 	for _, r := range drop {
-		if _, err := s.db.ExecContext(ctx, `DELETE FROM tracks WHERE root = ?`, r); err != nil {
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM tracks WHERE root = ? AND guid = ''`, r); err != nil {
 			return err
 		}
 	}
@@ -158,9 +158,9 @@ func (s *Store) DropTracks(ctx context.Context, ids []int64) error {
 	return tx.Commit()
 }
 
-// DropRemote removes the tracks of 飞牛音乐.
-func (s *Store) DropRemote(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `DELETE FROM tracks WHERE guid <> ''`)
+// DropSource removes the tracks of one remote source, named by its path prefix.
+func (s *Store) DropSource(ctx context.Context, prefix string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM tracks WHERE path LIKE ?`, prefix+"%")
 	return err
 }
 

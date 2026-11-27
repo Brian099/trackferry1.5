@@ -31,6 +31,7 @@ import (
 	"trackferry/internal/library"
 	"trackferry/internal/live"
 	"trackferry/internal/logx"
+	"trackferry/internal/navidrome"
 	"trackferry/internal/observe"
 	"trackferry/internal/online"
 	"trackferry/internal/privs"
@@ -38,6 +39,7 @@ import (
 	"trackferry/internal/routing"
 	"trackferry/internal/store"
 	"trackferry/internal/stream"
+	"trackferry/internal/synology"
 	"trackferry/internal/takeover"
 	"trackferry/internal/update"
 	"trackferry/internal/webui"
@@ -302,20 +304,38 @@ func serve() error {
 	if err != nil {
 		return err
 	}
-	lib.Remote = fn
-	streams.RemotePrefix = library.RemotePrefix
+	ds, err := synology.NewManager(filepath.Join(private, "synology.json"))
+	if err != nil {
+		return err
+	}
+	nd, err := navidrome.NewManager(filepath.Join(private, "navidrome.json"))
+	if err != nil {
+		return err
+	}
+	lib.Sources = []library.Source{feiniu.Source{Manager: fn}, ds, nd}
 	streams.Remote = func(rel string) (stream.Opener, string) {
 		t, ok := lib.ByPath(rel)
-		if !ok || !fn.Ready() {
+		if !ok || t.GUID == "" {
 			return nil, ""
 		}
-		ext := t.Format
-		if ext == "alac" {
-			ext = "m4a"
+		src := lib.SourceOf(t.Path)
+		open, ok := src.(interface {
+			Open(ctx context.Context, id, rng string) (*http.Response, error)
+		})
+		if !ok {
+			return nil, ""
 		}
-		return func(ctx context.Context, rng string) (*http.Response, error) { return fn.Open(ctx, t.GUID, rng) }, "." + ext
+		if ready, ok := src.(interface{ Ready() bool }); ok && !ready.Ready() {
+			return nil, ""
+		}
+		ext := "." + t.Format
+		if t.Format == "alac" {
+			ext = ".m4a"
+		}
+		return func(ctx context.Context, rng string) (*http.Response, error) { return open.Open(ctx, t.GUID, rng) }, ext
 	}
 	go fn.Run(ctx)
+	go ds.Run(ctx)
 	go lib.Run(ctx, 6*time.Hour)
 	client := online.Client()
 	netease := &online.Netease{Client: client, File: filepath.Join(private, "netease.json")}
@@ -371,7 +391,7 @@ func serve() error {
 		return err
 	}
 	router.Lists = fn
-	dispatcher.Next, dispatcher.Put, dispatcher.Random = router.Next, router.Put, lib.RandomIDs
+	dispatcher.Next, dispatcher.Random = router.Next, lib.RandomIDs
 	router.ArtistQueue = func() bool { return takeover.LoadPrefs(ctx, st).Artist }
 	played := func(dev, title, artist string, track int64) {
 		dispatcher.Drop(dev) // a song sent by hand ends a list
@@ -416,7 +436,7 @@ func serve() error {
 	srv := api.New(api.Options{
 		Config: cfg, Store: st, Token: token, SetupCodePath: setupCodePath,
 		Build: api.Build{Version: version, Commit: commit}, Boot: boot,
-		Xiaomi: xm, Observer: obs, Engine: engine, Stream: streams, Library: lib, Cache: kept, Router: router, Feiniu: fn, Netease: netease, Live: hub, Home: atHome, Played: played, Dispatcher: dispatcher, Web: webui.Handler(), Log: log, Update: checker, SetupLog: showCode,
+		Xiaomi: xm, Observer: obs, Engine: engine, Stream: streams, Library: lib, Cache: kept, Router: router, Feiniu: fn, Synology: ds, Navidrome: nd, Netease: netease, Live: hub, Home: atHome, Played: played, Dispatcher: dispatcher, Web: webui.Handler(), Log: log, Update: checker, SetupLog: showCode,
 	})
 	httpSrv := &http.Server{
 		Addr:              cfg.Listen,

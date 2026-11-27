@@ -3,7 +3,6 @@ import { api, ApiError, type Device, type Track } from '../api';
 import { deviceTitle, length, singer } from '../copy';
 import { connected, useTarget } from '../ear';
 import type { Place } from '../nav';
-import { AddToSheet } from './AddTo';
 import { Sheet } from './Sheet';
 import { useToast } from './Toast';
 
@@ -12,7 +11,6 @@ const icon = (d: string) => <svg viewBox="0 0 24 24" width="22" height="22" fill
 /** What else can be done with a song of the library. */
 export function TrackMenu({ track, devices, navigate }: { track: Track; devices: Device[]; navigate: (p: Place) => void }) {
   const [open, setOpen] = useState(false);
-  const [adding, setAdding] = useState(false);
   const [target, setTarget] = useTarget(devices);
   const [toast, say] = useToast();
   const list = connected(devices);
@@ -38,13 +36,11 @@ export function TrackMenu({ track, devices, navigate }: { track: Track; devices:
             <button type="button" onClick={() => send(d, true)}>{icon('M4 7h10M4 12h7M4 17h7M15 11.5v7l5.5-3.5z')}下一首放</button>
           </div>
           <div className="picks plain">
-            <button type="button" onClick={() => { setOpen(false); setAdding(true); }}><i>{icon('M4 7h14M4 12h9M4 17h8M18 12v8M14 16h8')}</i><span><b>加入歌单</b></span></button>
             {track.album_id && <button type="button" onClick={() => { setOpen(false); navigate({ page: 'library', kind: 'album', id: track.album_id! }); }}><i>{icon('M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17zM12 9.6a2.4 2.4 0 1 1 0 4.8 2.4 2.4 0 0 1 0-4.8z')}</i><span><b>看专辑</b><small>{track.album}</small></span></button>}
             {singer(track.artist) && <button type="button" onClick={() => { setOpen(false); navigate({ page: 'library', kind: 'artist', id: track.artist }); }}><i>{icon('M12 4a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM4.5 20c1-4.4 4-6 7.5-6s6.5 1.6 7.5 6')}</i><span><b>看歌手</b><small>{track.artist}</small></span></button>}
           </div>
         </Sheet>
       )}
-      {adding && <AddToSheet trackID={track.id} title={track.title} onClose={() => setAdding(false)} say={say} />}
       {toast}
     </>
   );

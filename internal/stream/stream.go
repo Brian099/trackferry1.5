@@ -156,10 +156,9 @@ type Server struct {
 	base     string // public base URL the speakers can reach, e.g. http://10.0.0.2:18561
 	musicDir string
 	Log      *slog.Logger // optional: one line per speaker request (never the token)
-	// Remote opens songs that are not files: those whose name starts with RemotePrefix. It
-	// returns the URL extension (".flac") too; a nil Opener means it has no such song.
-	Remote       func(rel string) (Opener, string)
-	RemotePrefix string
+	// Remote opens songs that are not files. It returns the URL extension (".flac") too;
+	// a nil Opener means the track is a file below the music directory.
+	Remote func(rel string) (Opener, string)
 
 	mu    sync.Mutex
 	items map[string]*item
@@ -228,16 +227,14 @@ func (s *Server) Proxy(open Opener, label string, d time.Duration) (*Handle, err
 
 // Song registers a library file whose play length is known (0 = unknown).
 func (s *Server) Song(rel, label string, d time.Duration) (*Handle, error) {
-	if s.Remote != nil && strings.HasPrefix(rel, s.RemotePrefix) {
-		open, ext := s.Remote(rel)
-		if open == nil {
-			return nil, errors.New("song is no longer in the library")
+	if s.Remote != nil {
+		if open, ext := s.Remote(rel); open != nil {
+			ctype := audioTypes[ext]
+			if ctype == "" {
+				ctype = "application/octet-stream"
+			}
+			return s.register(&item{h: &Handle{Label: label, Duration: d}, open: open, ctype: ctype}, ext)
 		}
-		ctype := audioTypes[ext]
-		if ctype == "" {
-			ctype = "application/octet-stream"
-		}
-		return s.register(&item{h: &Handle{Label: label, Duration: d}, open: open, ctype: ctype}, ext)
 	}
 	h, err := s.File(rel, label)
 	if err == nil {
@@ -248,19 +245,17 @@ func (s *Server) Song(rel, label string, d time.Duration) (*Handle, error) {
 
 // Openable reports whether a song can be opened right now.
 func (s *Server) Openable(rel string) bool {
-	if s.Remote != nil && strings.HasPrefix(rel, s.RemotePrefix) {
-		open, _ := s.Remote(rel)
-		if open == nil {
-			return false
+	if s.Remote != nil {
+		if open, _ := s.Remote(rel); open != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+			defer cancel()
+			resp, err := open(ctx, "bytes=0-0")
+			if err != nil {
+				return false
+			}
+			resp.Body.Close()
+			return true
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		defer cancel()
-		resp, err := open(ctx, "bytes=0-0")
-		if err != nil {
-			return false
-		}
-		resp.Body.Close()
-		return true
 	}
 	f, err := os.Open(filepath.Join(s.musicDir, filepath.FromSlash(rel)))
 	if err != nil {

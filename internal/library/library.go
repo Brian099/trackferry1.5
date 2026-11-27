@@ -28,6 +28,18 @@ import (
 // Playable formats by extension; anything else speakers cannot decode and is not indexed.
 var formats = map[string]string{".mp3": "mp3", ".flac": "flac", ".m4a": "m4a", ".aac": "aac", ".ogg": "ogg", ".wav": "wav"}
 
+// FormatOf reports the format TrackFerry recognises for a file extension (".mp3") or a
+// bare codec/container name ("mp3"); "" when speakers cannot play it.
+func FormatOf(name string) string {
+	if name == "" {
+		return ""
+	}
+	if strings.HasPrefix(name, ".") {
+		return formats[strings.ToLower(name)]
+	}
+	return formats["."+strings.ToLower(name)]
+}
+
 // RootReport is one root's share of a scan.
 type RootReport struct {
 	Name       string   `json:"name"` // "" = files directly in the music directory
@@ -68,8 +80,8 @@ type Library struct {
 	dir string
 	st  *store.Store
 	log *slog.Logger
-	// Remote, when linked, is the library; the music directory is then not scanned.
-	Remote Remote
+	// Sources are remote libraries mirrored into the index alongside the files.
+	Sources []Source
 
 	mu      sync.RWMutex
 	idx     *index
@@ -203,7 +215,8 @@ func (l *Library) Size() int {
 
 const batch = 200
 
-// Scan walks the music directory once. Unchanged files (same size and time) are not reopened.
+// Scan mirrors every linked source and then walks the music directory once. Unchanged
+// files (same size and time) are not reopened.
 func (l *Library) Scan(ctx context.Context) (err error) {
 	started := time.Now()
 	id, err := l.st.StartScan(ctx, started)
@@ -218,13 +231,9 @@ func (l *Library) Scan(ctx context.Context) (err error) {
 			return err
 		}
 	}
-	rep := &Report{StartedMS: started.UnixMilli(), Source: "files", Roots: []RootReport{}}
+	rep := &Report{StartedMS: started.UnixMilli(), Roots: []RootReport{}}
 	l.mu.Lock()
 	l.running, l.seen, l.cur = true, 0, rep
-	known := make(map[string]store.TrackRow, len(l.idx.rows))
-	for _, t := range l.idx.rows {
-		known[t.Path] = t
-	}
 	l.mu.Unlock()
 	defer func() {
 		bg := context.WithoutCancel(ctx)
@@ -244,12 +253,33 @@ func (l *Library) Scan(ctx context.Context) (err error) {
 		l.log.Info("曲库　同步结束", "状态", state, "用时ms", time.Since(started).Milliseconds(), "新增", rep.Added, "移除", rep.Removed, "共", l.Size())
 	}()
 
-	if l.Remote != nil && l.Remote.Linked() {
-		return l.sync(ctx, id, rep, known)
+	sources := []string{}
+	for _, src := range l.Sources {
+		if src.Linked() {
+			if err := l.syncSource(ctx, id, rep, src); err != nil {
+				return err
+			}
+			sources = append(sources, src.ID())
+		} else if err := l.st.DropSource(ctx, src.Prefix()); err != nil {
+			return err
+		}
 	}
-	if err := l.st.DropRemote(ctx); err != nil {
+	if err := l.scanFiles(ctx, id, rep); err != nil {
 		return err
 	}
+	if rep.Added > 0 || rep.Removed > 0 {
+		if err := l.Load(ctx); err != nil {
+			return err
+		}
+	}
+	sources = append(sources, "files")
+	rep.Source = strings.Join(sources, "+")
+	rep.Total = l.Size()
+	return nil
+}
+
+// scanFiles walks the music directory and refreshes the file tracks.
+func (l *Library) scanFiles(ctx context.Context, id int64, rep *Report) error {
 	entries, err := os.ReadDir(l.dir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) { // the folder is optional
 		return err
@@ -270,17 +300,27 @@ func (l *Library) Scan(ctx context.Context) (err error) {
 	if loose {
 		roots = append([]string{""}, roots...)
 	}
+	known := map[string]store.TrackRow{}
+	l.mu.RLock()
+	for _, t := range l.idx.rows {
+		if t.GUID == "" {
+			known[t.Path] = t
+		}
+	}
+	l.mu.RUnlock()
+	idx := make([]int, len(roots))
 	l.mu.Lock()
-	for _, r := range roots {
+	for i, r := range roots {
+		idx[i] = len(rep.Roots)
 		rep.Roots = append(rep.Roots, RootReport{Name: r, Samples: []string{}})
 	}
 	l.mu.Unlock()
 	for i := range roots {
-		if err := l.scanRoot(ctx, id, rep, &rep.Roots[i], known); err != nil {
+		if err := l.scanRoot(ctx, id, rep, &rep.Roots[idx[i]], known); err != nil {
 			return err
 		}
 	}
-	for i := range rep.Roots {
+	for _, i := range idx {
 		// Only a fully read root may lose tracks.
 		if rr := &rep.Roots[i]; rr.done && rr.Unreadable == 0 && rr.Error == "" {
 			n, err := l.st.DropUnseen(ctx, id, rr.Name)
@@ -297,7 +337,7 @@ func (l *Library) Scan(ctx context.Context) (err error) {
 			return err
 		}
 	}
-	return l.Load(ctx)
+	return nil
 }
 
 func skip(name string) bool {

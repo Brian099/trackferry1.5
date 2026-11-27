@@ -48,8 +48,6 @@ type Dispatcher struct {
 	Favorite func(ctx context.Context, track int64, on bool) error
 	// Next is the route of a later song of a list; optional.
 	Next func(track int64, list string) (*routing.Route, bool)
-	// Put adds a song of the library to a playlist, or takes it out; optional.
-	Put  func(ctx context.Context, track int64, name string, on bool) (list string, changed bool, err error)
 	Open func(*routing.Route) stream.Opener // online audio
 	// Keep stores an online song that is being heard; optional.
 	Keep    func(*routing.Route)
@@ -304,12 +302,7 @@ func (d *Dispatcher) OnCommand(ctx context.Context, c store.Command, hardware, m
 			// over music of her own, hers is.
 			work := func() (said string) {
 				start := time.Now()
-				switch in.Control {
-				case intent.ListAdd, intent.ListRemove:
-					rt.Reason, said = d.put(bg, c.DeviceID, in.Title, in.Control == intent.ListAdd)
-				default:
-					rt.Reason, said = d.favorite(bg, c.DeviceID, in.Control == "add")
-				}
+				rt.Reason, said = d.favorite(bg, c.DeviceID, in.Control == "add")
 				rt.MS = time.Since(start).Milliseconds()
 				return said
 			}

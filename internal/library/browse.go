@@ -181,13 +181,16 @@ func (l *Library) Shelf() Shelf {
 // ErrNotRemote is a song 飞牛音乐 does not hold.
 var ErrNotRemote = errors.New("这首歌不在飞牛音乐里")
 
-// SetFavorite adds a song to the favourites in 飞牛音乐, or takes it out.
+// SetFavorite adds a song to the favourites in its source, or takes it out.
 func (l *Library) SetFavorite(ctx context.Context, id int64, on bool) (store.TrackRow, error) {
 	t, ok := l.Track(id)
-	f, can := l.Remote.(interface {
+	if !ok || t.GUID == "" {
+		return t, ErrNotRemote
+	}
+	f, can := l.SourceOf(t.Path).(interface {
 		Favorite(ctx context.Context, guid string, on bool) error
 	})
-	if !ok || t.GUID == "" || !can {
+	if !can {
 		return t, ErrNotRemote
 	}
 	if t.Favorite == on {

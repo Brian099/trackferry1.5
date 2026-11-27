@@ -98,13 +98,27 @@ func (s *Server) feiniuLogout(w http.ResponseWriter, r *http.Request) {
 	s.feiniuStatus(w, r)
 }
 
-// cover passes a cover through. Cover IDs name fixed images, so browsers may keep them.
+// cover passes a cover through. Cover IDs carry their source prefix (ds-/nd-), so browsers
+// may keep them cached for a long time.
 func (s *Server) cover(w http.ResponseWriter, r *http.Request) {
 	size := r.URL.Query().Get("size")
 	if size != "160" && size != "600" && size != "1024" {
 		size = "600"
 	}
-	resp, err := s.Feiniu.Cover(r.Context(), r.PathValue("id"), size)
+	id := r.PathValue("id")
+	var resp *http.Response
+	var err error
+	switch {
+	case strings.HasPrefix(id, "ds-") && s.Synology != nil:
+		resp, err = s.Synology.Cover(r.Context(), strings.TrimPrefix(id, "ds-"))
+	case strings.HasPrefix(id, "nd-") && s.Navidrome != nil:
+		resp, err = s.Navidrome.Cover(r.Context(), strings.TrimPrefix(id, "nd-"), size)
+	case s.Feiniu != nil:
+		resp, err = s.Feiniu.Cover(r.Context(), id, size)
+	default:
+		writeError(w, http.StatusNotFound, "no_cover", "没有这张封面")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusNotFound, "no_cover", "没有这张封面")
 		return
@@ -147,7 +161,7 @@ func (s *Server) libraryLyrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	text := ""
-	if t.GUID != "" && s.Feiniu != nil {
+	if s.Feiniu != nil && strings.HasPrefix(t.Path, feiniu.SourcePrefix) {
 		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 		defer cancel()
 		var err error

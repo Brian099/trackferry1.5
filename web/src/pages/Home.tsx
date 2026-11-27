@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError, type Command, type Device, type ObserverStatus, type Route, type TakeoverRun } from '../api';
 import { Cover } from '../components/Cover';
-import { AddTo } from '../components/AddTo';
 import { SpeakerChip } from '../components/SpeakerChip';
 import { Fish } from '../components/Fish';
 import { Heart } from '../components/Heart';
@@ -261,7 +260,7 @@ export function Home({ devices, navigate, onRelink }: { devices: Device[]; navig
           {!scene && <button className="link say-link" onClick={() => navigate({ page: 'say' })}>看看都能怎么说</button>}
           {r && !native && <p className="by">{[singer(r.artist), singer(r.album)].filter(Boolean).join('　')}</p>}
           {r && native && <p className="by">{r.reason || '由小爱处理'}</p>}
-          {r?.track_id && !native ? <div className="acts"><Heart key={`h${r.track_id}/${kept?.key}`} trackID={r.track_id} title={t} /><AddTo trackID={r.track_id} title={t} /></div> : null}
+          {r?.track_id && !native ? <div className="acts"><Heart key={`h${r.track_id}/${kept?.key}`} trackID={r.track_id} title={t} /></div> : null}
           </div>
           {words && <LyricSheet words={words} now={now} big={wide} />}
           {(now || words) && <div className="transport">

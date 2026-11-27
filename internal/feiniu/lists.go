@@ -70,33 +70,3 @@ func (m *Manager) all(ctx context.Context, path string, q url.Values) ([]Song, e
 		}
 	}
 }
-
-// PutInPlaylist adds a song to a playlist, or takes it out. changed is false when it was
-// that way already.
-func (m *Manager) PutInPlaylist(ctx context.Context, playlist, guid string, on bool) (changed bool, err error) {
-	songs, err := m.PlaylistSongs(ctx, playlist)
-	if err != nil {
-		return false, err
-	}
-	in := false
-	for _, s := range songs {
-		in = in || s.GUID == guid
-	}
-	if in == on {
-		return false, nil
-	}
-	c, err := m.client()
-	if err != nil {
-		return false, err
-	}
-	path := "/playlist/remove-track"
-	if on {
-		path = "/playlist/add-track"
-	}
-	err = c.call(ctx, http.MethodPost, path, nil, map[string]any{"guid": playlist, "trackGUIDs": []string{guid}}, nil)
-	var refused *APIError
-	if !errors.As(err, &refused) {
-		m.note(c, err)
-	}
-	return err == nil, err
-}

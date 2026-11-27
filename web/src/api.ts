@@ -192,6 +192,11 @@ export interface Feiniu {
 }
 export interface FeiniuInfo { feiniu: Feiniu; suggested: string }
 
+/** A linked music-library source other than 飞牛音乐. */
+export interface RemoteLink { linked: boolean; base?: string; user?: string; linked_at?: string; expired?: boolean; error?: string }
+export interface SynologyInfo { synology: RemoteLink }
+export interface NavidromeInfo { navidrome: RemoteLink }
+
 export interface RootReport {
   name: string;
   tracks: number;
@@ -208,7 +213,7 @@ export interface ScanReport {
   error?: string;
   added: number;
   removed: number;
-  source?: 'feiniu' | 'files';
+  source?: string;
   total?: number;
   skipped?: number;
   roots: RootReport[];
@@ -391,10 +396,15 @@ export const api = {
   linkFeiniu: (base: string, user: string, password: string, code: string) => request<FeiniuInfo>('POST', '/api/feiniu', { base, user, password, code }),
   discoverFeiniu: () => request<{ servers: FeiniuServer[]; blocked: string[]; relay: boolean }>('GET', '/api/feiniu/discover'),
   unlinkFeiniu: () => request<FeiniuInfo>('DELETE', '/api/feiniu'),
+  synology: () => request<SynologyInfo>('GET', '/api/synology'),
+  linkSynology: (base: string, user: string, password: string, otp: string) => request<SynologyInfo>('POST', '/api/synology', { base, user, password, otp }),
+  unlinkSynology: () => request<SynologyInfo>('DELETE', '/api/synology'),
+  navidrome: () => request<NavidromeInfo>('GET', '/api/navidrome'),
+  linkNavidrome: (base: string, user: string, password: string) => request<NavidromeInfo>('POST', '/api/navidrome', { base, user, password }),
+  unlinkNavidrome: () => request<NavidromeInfo>('DELETE', '/api/navidrome'),
   searchLibrary: (q: string) => request<{ tracks: Track[] | null }>('GET', `/api/library/search?q=${encodeURIComponent(q)}`),
   missing: () => request<{ songs: Missing[] }>('GET', '/api/library/missing'),
   dismissMissing: (title: string, artist: string, back = false) => request<{ songs: Missing[] }>('POST', '/api/library/missing/dismiss', { title, artist, back }),
-  addToPlaylist: (guid: string, track_id: number) => request<{ changed: boolean }>('POST', `/api/library/playlists/${encodeURIComponent(guid)}/tracks`, { track_id }),
   cache: () => request<CacheStatus>('GET', '/api/cache'),
   setCache: (limit_mb: number) => request<CacheStatus>('PUT', '/api/cache', { limit_mb }),
   clearCache: () => request<CacheStatus>('DELETE', '/api/cache'),

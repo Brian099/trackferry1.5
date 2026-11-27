@@ -12,12 +12,6 @@ const (
 	ListAlbum     = "album"    // Title is its name, Artist whose; no Title: the one the song is from
 )
 
-// What a favourite request means, in Control, when it is about a playlist: Title names it.
-const (
-	ListAdd    = "list_add"
-	ListRemove = "list_remove"
-)
-
 // Verbs that only make a request of a list: "听我的收藏" is one, "听海" is not.
 var listVerbs = []string{"循环播放", "连续播放", "顺序播放", "开始播放", "打开", "听听", "听一下", "听"}
 
@@ -100,41 +94,4 @@ func albumTail(s string) bool {
 		return true
 	}
 	return false
-}
-
-var (
-	theSong    = `(?:这首歌曲|这首歌|这首|这个歌|这歌|当前歌曲|当前这首歌|当前这首|现在这首歌|现在这首|正在放的歌|正在播放的歌|正在放的这首歌|它)`
-	putIn      = `(?:添加到|添加进|添加入|加入到|加入|加到|加进|放入|放进|放到|存到|存进|存入|收藏到|收藏进|收进|收到)`
-	listEnd    = `歌单(?:里面|里|中)?去?$`
-	addRe      = regexp.MustCompile(`^` + theSong + `?` + putIn + `(.*?)` + listEnd)
-	addAfterRe = regexp.MustCompile(`^` + theSong + `?` + putIn + `歌单(.+?)(?:里面|里|中)?去?$`)
-	addHereRe  = regexp.MustCompile(`^(?:在|往|向)?(.*?)歌单(?:里面|里|中)?(?:添加|加入|加上|放入|加)` + theSong + `$`)
-	outRe      = regexp.MustCompile(`^` + theSong + `?(?:从|在)(.*?)歌单(?:里面|里|中)?(?:把|将)?` + theSong + `?(?:删除|删掉|删了|移除|移出|去掉|拿掉)` + theSong + `?$`)
-	outOfRe    = regexp.MustCompile(`^` + theSong + `?(?:移出|移除出)(.*?)歌单$`)
-)
-
-// put recognises "把这首歌加入测试歌单" and its opposite. q is as favorite trims it.
-func put(q string) (Intent, bool) {
-	for i, re := range []*regexp.Regexp{addRe, addAfterRe, addHereRe, outRe, outOfRe} {
-		m := re.FindStringSubmatch(q)
-		if m == nil {
-			continue
-		}
-		name := m[1]
-		for _, p := range []string{"飞牛音乐的", "飞牛的", "我的", "名字叫", "名叫", "名为", "叫做", "叫"} {
-			name = strings.TrimPrefix(name, p)
-		}
-		for _, s := range []string{"的", "这个", "那个"} {
-			name = strings.TrimSuffix(name, s)
-		}
-		in := Intent{Kind: KindFavorite, Control: ListAdd, Title: name, Follow: true}
-		if i > 2 {
-			in.Control = ListRemove
-		}
-		if name == "收藏" || name == "喜欢" {
-			in.Title, in.Control = "", strings.TrimPrefix(in.Control, "list_")
-		}
-		return in, true
-	}
-	return Intent{}, false
 }

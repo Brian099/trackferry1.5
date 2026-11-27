@@ -25,11 +25,13 @@ import (
 	"trackferry/internal/home"
 	"trackferry/internal/library"
 	"trackferry/internal/live"
+	"trackferry/internal/navidrome"
 	"trackferry/internal/observe"
 	"trackferry/internal/online"
 	"trackferry/internal/routing"
 	"trackferry/internal/store"
 	"trackferry/internal/stream"
+	"trackferry/internal/synology"
 	"trackferry/internal/takeover"
 	"trackferry/internal/update"
 	"trackferry/internal/xiaomi"
@@ -58,8 +60,10 @@ type Options struct {
 	Library       *library.Library
 	Cache         *cache.Cache // nil: online songs are not kept
 	Router        *routing.Router
-	Feiniu        *feiniu.Manager   // nil: no 飞牛音乐 in this server
-	Netease       *online.Netease   // nil: no 网易云 login
+	Feiniu        *feiniu.Manager    // nil: no 飞牛音乐 in this server
+	Synology      *synology.Manager  // nil: no 群晖音乐 in this server
+	Navidrome     *navidrome.Manager // nil: no Navidrome in this server
+	Netease       *online.Netease    // nil: no 网易云 login
 	Live          *live.Hub         // nil: no live view
 	Home          *home.Tracker     // nil: no endpoint for home automation
 	Update        *update.Checker   // nil: never looks for a newer release
@@ -78,6 +82,8 @@ type Server struct {
 	// xmLimiter throttles Xiaomi password attempts so a typo loop cannot get the account locked.
 	xmLimiter *auth.Limiter
 	fnLimiter *auth.Limiter // same for 飞牛音乐
+	dsLimiter *auth.Limiter // same for 群晖音乐
+	ndLimiter *auth.Limiter // same for Navidrome
 
 	setupMu    sync.Mutex
 	setupShown time.Time
@@ -94,7 +100,7 @@ const (
 
 // New builds a Server. Call MarkReady once initialisation has finished.
 func New(o Options) *Server {
-	return &Server{Options: o, started: time.Now(), limiter: auth.NewLimiter(), xmLimiter: auth.NewLimiter(), fnLimiter: auth.NewLimiter()}
+	return &Server{Options: o, started: time.Now(), limiter: auth.NewLimiter(), xmLimiter: auth.NewLimiter(), fnLimiter: auth.NewLimiter(), dsLimiter: auth.NewLimiter(), ndLimiter: auth.NewLimiter()}
 }
 
 // MarkReady flips readiness on.
@@ -184,7 +190,7 @@ func (s *Server) Handler() http.Handler {
 		if s.Engine != nil {
 			ha("POST /api/ha/speakers/{id}/control", s.control)
 		}
-		if s.Feiniu != nil && s.Library != nil {
+		if s.Library != nil {
 			ha("GET /api/ha/cover/{id}", s.cover)
 			ha("GET /api/ha/lyrics/{id}", s.haLyrics)
 		}
@@ -196,7 +202,6 @@ func (s *Server) Handler() http.Handler {
 		authed("GET /api/library/missing", s.libraryMissing)
 		authed("GET /api/library/missing.csv", s.libraryMissingCSV)
 		authed("POST /api/library/missing/dismiss", s.libraryMissingDismiss)
-		authed("POST /api/library/playlists/{guid}/tracks", s.libraryPlaylistAdd)
 		authed("GET /api/library/shelf", s.libraryShelf)
 		authed("GET /api/library/albums/{id}", s.libraryAlbum)
 		authed("GET /api/library/artist", s.libraryArtist)
@@ -225,12 +230,24 @@ func (s *Server) Handler() http.Handler {
 		authed("PUT /api/cache", s.cacheLimit)
 		authed("DELETE /api/cache", s.cacheClear)
 	}
-	if s.Feiniu != nil && s.Library != nil {
-		authed("GET /api/feiniu", s.feiniuStatus)
-		authed("GET /api/feiniu/discover", s.feiniuDiscover)
-		authed("POST /api/feiniu", s.feiniuLogin)
-		authed("DELETE /api/feiniu", s.feiniuLogout)
+	if s.Library != nil {
 		authed("GET /api/cover/{id}", s.cover)
+		if s.Feiniu != nil {
+			authed("GET /api/feiniu", s.feiniuStatus)
+			authed("GET /api/feiniu/discover", s.feiniuDiscover)
+			authed("POST /api/feiniu", s.feiniuLogin)
+			authed("DELETE /api/feiniu", s.feiniuLogout)
+		}
+		if s.Synology != nil {
+			authed("GET /api/synology", s.synologyStatus)
+			authed("POST /api/synology", s.synologyLogin)
+			authed("DELETE /api/synology", s.synologyLogout)
+		}
+		if s.Navidrome != nil {
+			authed("GET /api/navidrome", s.navidromeStatus)
+			authed("POST /api/navidrome", s.navidromeLogin)
+			authed("DELETE /api/navidrome", s.navidromeLogout)
+		}
 	}
 	if s.Stream != nil {
 		// Speakers fetch audio without a login; the unguessable token is the access control.

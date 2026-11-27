@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError, type Album, type Artist, type Device, type OnlineSong, type Sendable, type Track } from '../api';
-import { AddToSheet } from '../components/AddTo';
 import { Cover } from '../components/Cover';
 import { Heart } from '../components/Heart';
 import { useOnline } from '../components/Online';
@@ -55,7 +54,6 @@ export function Search({ devices, navigate }: { devices: Device[]; navigate: Nav
   const [artists, setArtists] = useState<Artist[]>([]);
   const [busy, setBusy] = useState('');
   const [more, setMore] = useState<Song | null>(null);
-  const [adding, setAdding] = useState<Track | null>(null);
   const [toast, say] = useToast();
   const input = useRef<HTMLInputElement>(null);
   const online = useOnline(key, asked.q, asked.turn);
@@ -202,13 +200,11 @@ export function Search({ devices, navigate }: { devices: Device[]; navigate: Nav
             <button type="button" onClick={() => { play(more, 'next'); setMore(null); }}><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true"><path d="M4 7h10M4 12h7M4 17h7M15 11.5v7l5.5-3.5z" /></svg>下一首放</button>
           </div>
           <div className="picks plain">
-            {more.track && <button type="button" onClick={() => { setAdding(more.track!); setMore(null); }}><i><svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M2 4.5h13M2 10h9M2 15.5h7M15.5 10.5v8M11.5 14.5h8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg></i><span><b>加入歌单</b></span></button>}
             {more.track?.album_id && <button type="button" onClick={() => { setMore(null); navigate({ page: 'library', kind: 'album', id: more.track!.album_id! }); }}><i><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="2.4" /></svg></i><span><b>看专辑</b><small>{more.track.album}</small></span></button>}
             {more.artist && <button type="button" onClick={() => { const s = more; setMore(null); if (s.track) navigate({ page: 'library', kind: 'artist', id: s.track.artist }); else look(s.artist); }}><i><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4.5 20c1-4.4 4-6 7.5-6s6.5 1.6 7.5 6" /></svg></i><span><b>{more.track ? '看歌手' : '搜这位歌手'}</b><small>{more.artist}</small></span></button>}
           </div>
         </Sheet>
       )}
-      {adding && <AddToSheet trackID={adding.id} title={adding.title} onClose={() => setAdding(null)} say={say} />}
       {toast}
     </div>
   );

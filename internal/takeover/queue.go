@@ -585,44 +585,6 @@ func (d *Dispatcher) skip(q *queue, c store.Command, hardware string, tr *live.T
 	return rt, Request{DeviceID: q.dev, Hardware: hardware, Kind: "command", CommandID: c.ID, UpstreamMS: c.UpstreamMS, Track: t, Trace: tr}, true
 }
 
-// put adds the song on the speaker to a playlist, or takes it out, and says how it went.
-func (d *Dispatcher) put(ctx context.Context, dev, name string, on bool) (string, string) {
-	d.mu.Lock()
-	l, ok := d.last[dev]
-	d.mu.Unlock()
-	song := "《" + l.Title + "》"
-	switch {
-	case !ok:
-		return "不知道说的是哪首歌", "没听出是哪首歌"
-	case l.track == 0:
-		return song + "不在曲库里，加不进歌单", l.Title + "不在曲库里，没法加进歌单"
-	case d.Put == nil:
-		return "没有连接飞牛音乐", "还没连接飞牛音乐"
-	}
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
-	list, changed, err := d.Put(ctx, l.track, name, on)
-	switch {
-	case err != nil:
-		d.Log.Warn("歌单　没有成功", "原因", err)
-		said := l.Title + "没能加进歌单"
-		if !on {
-			said = l.Title + "没能移出歌单"
-		}
-		if list == "" { // which playlist: worth hearing, and it holds no addresses
-			said = strings.TrimSpace(sayable(err))
-		}
-		return song + "：" + err.Error(), said
-	case on && changed:
-		return song + "已加入歌单“" + list + "”", "已加入" + list + "歌单"
-	case on:
-		return song + "已经在歌单“" + list + "”里", "已经在" + list + "歌单里了"
-	case changed:
-		return song + "已移出歌单“" + list + "”", "已移出" + list + "歌单"
-	}
-	return song + "不在歌单“" + list + "”里", "它不在" + list + "歌单里"
-}
-
 // sayable shortens an error for the speaker.
 func sayable(err error) string {
 	s, _, cut := strings.Cut(err.Error(), "：")

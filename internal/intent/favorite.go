@@ -11,7 +11,7 @@ func favorite(q string) (Intent, bool) {
 	if ok {
 		return Intent{Kind: KindFavorite, Control: c, Follow: true}, true
 	}
-	return put(q)
+	return Intent{}, false
 }
 
 // kept reads q without its polite words, which it removes.

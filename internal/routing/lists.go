@@ -15,13 +15,12 @@ import (
 	"trackferry/internal/online"
 )
 
-// Lists reads the lists of 飞牛音乐 (feiniu.Manager).
+// Lists reads the lists of 飞牛音乐 (feiniu.Manager). Lists are read-only.
 type Lists interface {
 	Linked() bool
 	Favorites(ctx context.Context) ([]feiniu.Song, error)
 	Playlists(ctx context.Context) ([]feiniu.Playlist, error)
 	PlaylistSongs(ctx context.Context, guid string) ([]feiniu.Song, error)
-	PutInPlaylist(ctx context.Context, playlist, guid string, on bool) (bool, error)
 }
 
 // listWait bounds the time a list may take; Xiao AI talks meanwhile.
@@ -114,7 +113,7 @@ func (r *Router) list(ctx context.Context, rt *Route, in intent.Intent) {
 	collect := func(songs []feiniu.Song) {
 		total = len(songs)
 		for _, s := range songs {
-			if t, ok := r.Library.ByPath(library.RemotePrefix + s.GUID); ok {
+			if t, ok := r.Library.ByPath(feiniu.SourcePrefix + s.GUID); ok {
 				ids = append(ids, t.ID)
 			}
 		}
@@ -222,18 +221,6 @@ func (r *Router) album(rt *Route, in intent.Intent, song int64) {
 	rt.Because("选它", "%s", l.Detail)
 }
 
-// PutIn adds a song of the library to a playlist picked by hand.
-func (r *Router) PutIn(ctx context.Context, id int64, guid string) (changed bool, err error) {
-	if r.Lists == nil || !r.Lists.Linked() {
-		return false, errors.New("没有连接飞牛音乐")
-	}
-	t, ok := r.Library.Track(id)
-	if !ok || t.GUID == "" {
-		return false, library.ErrNotRemote
-	}
-	return r.Lists.PutInPlaylist(ctx, guid, t.GUID, true)
-}
-
 // Track is a song of the library, if its file can be read right now.
 func (r *Router) Track(id int64) (library.Match, bool) {
 	t, ok := r.Library.Track(id)
@@ -251,24 +238,6 @@ func (r *Router) Next(id int64, list string) (*Route, bool) {
 	rt.take(m)
 	rt.List = list
 	return rt, true
-}
-
-// Put adds a song of the library to a playlist of 飞牛音乐, or takes it out. changed is false
-// when it was that way already; list is the playlist's own name.
-func (r *Router) Put(ctx context.Context, id int64, name string, on bool) (list string, changed bool, err error) {
-	if r.Lists == nil || !r.Lists.Linked() {
-		return "", false, errors.New("没有连接飞牛音乐")
-	}
-	t, ok := r.Library.Track(id)
-	if !ok || t.GUID == "" {
-		return "", false, library.ErrNotRemote
-	}
-	p, err := r.playlist(ctx, name)
-	if err != nil {
-		return "", false, err
-	}
-	changed, err = r.Lists.PutInPlaylist(ctx, p.GUID, t.GUID, on)
-	return p.Name, changed, err
 }
 
 // shuffled puts ids in random order, first at the beginning.
@@ -302,7 +271,7 @@ func (r *Router) Collect(ctx context.Context, guid string) (string, []int64, err
 		}
 		ids := []int64{}
 		for _, s := range songs {
-			if t, ok := r.Library.ByPath(library.RemotePrefix + s.GUID); ok {
+			if t, ok := r.Library.ByPath(feiniu.SourcePrefix + s.GUID); ok {
 				ids = append(ids, t.ID)
 			}
 		}

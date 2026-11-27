@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"trackferry/internal/feiniu"
 	"trackferry/internal/home"
 )
 
@@ -160,10 +161,13 @@ func (s *Server) haLyrics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "no_track", "曲库里没有这首歌了")
 		return
 	}
-	text, err := s.Feiniu.Lyrics(r.Context(), t.GUID)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "lyrics", err.Error())
-		return
+	text := ""
+	if s.Feiniu != nil && strings.HasPrefix(t.Path, feiniu.SourcePrefix) {
+		var err error
+		if text, err = s.Feiniu.Lyrics(r.Context(), t.GUID); err != nil {
+			writeError(w, http.StatusBadGateway, "lyrics", err.Error())
+			return
+		}
 	}
 	synced, lines := home.Lyrics(text)
 	writeJSON(w, http.StatusOK, map[string]any{"schema_version": home.SchemaVersion, "track_id": id, "synced": synced, "offset_ms": 0, "lines": lines})

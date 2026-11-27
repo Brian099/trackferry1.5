@@ -2,10 +2,8 @@ package takeover
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -154,37 +152,6 @@ func TestNextPreviousAndANewRequestWhileAListPlays(t *testing.T) {
 	say("再下一首", intent.KindControl, "next") // Xiao AI's
 	if len(sp.started) != n {
 		t.Fatal("no list, yet it played")
-	}
-}
-
-func TestPutTheSongIntoAPlaylist(t *testing.T) {
-	d, _, _, _ := queueSetup(t)
-	ctx := context.Background()
-	if _, s := d.put(ctx, "d1", "测试", true); s != "没听出是哪首歌" {
-		t.Fatal(s)
-	}
-	d.Remember("d1", "晴天", "周杰伦", 0)
-	if s, _ := d.put(ctx, "d1", "测试", true); !strings.Contains(s, "不在曲库") {
-		t.Fatal(s)
-	}
-	d.Remember("d1", "晴天", "周杰伦", 7)
-	in := false
-	d.Put = func(_ context.Context, id int64, name string, on bool) (string, bool, error) {
-		if name != "测试" {
-			return "", false, errors.New("飞牛音乐里没有叫“" + name + "”的歌单，有测试")
-		}
-		changed := in != on
-		in = on
-		return "测试", changed, nil
-	}
-	for _, x := range []struct {
-		name, said string
-		on         bool
-	}{{"测试", "已加入测试歌单", true}, {"测试", "已经在测试歌单里了", true}, {"测试", "已移出测试歌单", false},
-		{"开车", "飞牛音乐里没有叫“开车”的歌单，有测试", true}} {
-		if _, s := d.put(ctx, "d1", x.name, x.on); s != x.said {
-			t.Error(s)
-		}
 	}
 }
 
