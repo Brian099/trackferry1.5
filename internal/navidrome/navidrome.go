@@ -343,7 +343,8 @@ func (m *Manager) albumSongs(ctx context.Context, s *Session, id string) ([]song
 }
 
 // walk reads every album and reports each playable song. Subsonic has no "all songs" call,
-// so this is one request per album; reporting as it goes keeps sync progress live.
+// so this is one request per album, fetched in parallel so a large or remote library does
+// not take forever; reporting as it goes keeps sync progress live.
 func (m *Manager) walk(ctx context.Context, s *Session, add func(library.Song) error) (int, error) {
 	var albums []album
 	for offset := 0; ; offset += pageMax {
@@ -356,24 +357,74 @@ func (m *Manager) walk(ctx context.Context, s *Session, add func(library.Song) e
 			break
 		}
 	}
+
+	const workers = 8
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type result struct {
+		name  string
+		songs []song
+		err   error
+	}
+	jobs := make(chan album)
+	results := make(chan result, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for a := range jobs {
+				songs, err := m.albumSongs(ctx, s, a.ID)
+				if err != nil {
+					songs, err = m.albumSongs(ctx, s, a.ID) // one retry
+				}
+				select {
+				case results <- result{a.Name, songs, err}:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+	go func() {
+		defer close(jobs)
+		for _, a := range albums {
+			select {
+			case jobs <- a:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
 	total := 0
-	for _, a := range albums {
-		songs, err := m.albumSongs(ctx, s, a.ID)
-		if err != nil {
-			// One retry: a remote server can hiccup while we walk every album.
-			songs, err = m.albumSongs(ctx, s, a.ID)
+	var firstErr error
+	for r := range results {
+		if r.err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("读专辑 %q 失败：%w", r.name, r.err)
+			}
+			cancel()
+			continue
 		}
-		if err != nil {
-			return 0, fmt.Errorf("读专辑 %q 失败：%w", a.Name, err)
-		}
-		for _, x := range songs {
+		for _, x := range r.songs {
 			if t, ok := toLibrarySong(x); ok {
 				total++
 				if err := add(t); err != nil {
-					return 0, err
+					firstErr = err
+					cancel()
+					break
 				}
 			}
 		}
+	}
+	if firstErr != nil {
+		return 0, firstErr
 	}
 	return total, nil
 }
