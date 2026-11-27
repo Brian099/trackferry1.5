@@ -60,7 +60,7 @@ func TestRemoteAndFilesCoexist(t *testing.T) {
 		t.Fatal(err, l.Size())
 	}
 	st := l.Status().Last
-	if st.Source != "feiniu+files" || st.Skipped != 1 || st.Added != 450 || st.Roots[0].Name != "音乐" {
+	if st.Source != "feiniu+files" || st.Skipped != 1 || st.Added != 450 || st.Roots[0].Name != "飞牛音乐/音乐" {
 		t.Errorf("%+v", st)
 	}
 	if err := l.Scan(ctx); err != nil || l.Status().Last.Added != 0 {

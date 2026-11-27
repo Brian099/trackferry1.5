@@ -124,8 +124,13 @@ func songRow(src Source, s Song) (store.TrackRow, bool) {
 		return store.TrackRow{}, false
 	}
 	root := s.Root
-	if root == "" {
+	switch {
+	case root == "":
 		root = src.Label()
+	case root == src.Label():
+		// already the source's own name (e.g. Navidrome)
+	default:
+		root = src.Label() + "/" + root
 	}
 	return store.TrackRow{
 		Path:       src.Prefix() + s.ID,

@@ -41,11 +41,14 @@ func TestLoginSongsAndPlaylists(t *testing.T) {
 		t.Fatal(err)
 	}
 	songs, total, err := m.Songs(context.Background(), 1, 200)
-	if err != nil || total != 2 || len(songs) != 1 {
+	if err != nil || total != 2 || len(songs) != 2 {
 		t.Fatalf("songs: %v %d %v", err, total, songs)
 	}
 	if songs[0].ID != "music_1" || songs[0].Format != "mp3" || songs[0].Root != "音乐" || songs[0].DurationMS != 260000 {
 		t.Errorf("song: %+v", songs[0])
+	}
+	if songs[1].Format != "" {
+		t.Errorf("dsf should stay unplayable: %+v", songs[1])
 	}
 	ps, err := m.Playlists(context.Background())
 	if err != nil || len(ps) != 1 || ps[0].Name != "new" {

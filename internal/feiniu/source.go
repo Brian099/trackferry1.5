@@ -23,7 +23,8 @@ func (Source) Prefix() string      { return SourcePrefix }
 func (Source) CoverPrefix() string { return "" }
 func (Source) Label() string       { return "飞牛音乐" }
 
-// Songs pages the library as source-neutral songs, dropping what speakers cannot play.
+// Songs pages the library as source-neutral songs. Unplayable songs keep an empty Format;
+// the library skips and counts them.
 func (s Source) Songs(ctx context.Context, page, size int) ([]library.Song, int, error) {
 	c, err := s.client()
 	if err != nil {
@@ -36,16 +37,13 @@ func (s Source) Songs(ctx context.Context, page, size int) ([]library.Song, int,
 	}
 	out := make([]library.Song, 0, len(p.List))
 	for _, song := range p.List {
-		if t, ok := toLibrarySong(song); ok {
-			out = append(out, t)
-		}
+		out = append(out, toLibrarySong(song))
 	}
 	return out, p.Total, nil
 }
 
-// toLibrarySong converts one 飞牛 song; ok is false for what speakers cannot be given on
-// their own.
-func toLibrarySong(s Song) (library.Song, bool) {
+// toLibrarySong converts one 飞牛 song; Format stays empty for what speakers cannot play.
+func toLibrarySong(s Song) library.Song {
 	format := library.FormatOf(path.Ext(s.Audio.Path))
 	if format == "" {
 		format = library.FormatOf(s.Audio.Format)
@@ -53,14 +51,11 @@ func toLibrarySong(s Song) (library.Song, bool) {
 	if format == "" {
 		format = library.FormatOf(s.Audio.Container)
 	}
-	if format == "" || s.Cue || s.GUID == "" || strings.TrimSpace(s.Title) == "" {
-		return library.Song{}, false
-	}
-	if strings.Contains(strings.ToLower(s.Audio.Codec), "dts") {
-		return library.Song{}, false
-	}
 	if strings.EqualFold(s.Audio.Codec, "alac") {
 		format = "alac"
+	}
+	if s.Cue || strings.Contains(strings.ToLower(s.Audio.Codec), "dts") {
+		format = ""
 	}
 	var as []string
 	for _, a := range s.Artists {
@@ -88,7 +83,7 @@ func toLibrarySong(s Song) (library.Song, bool) {
 			out.Cover = s.Album.CoverID
 		}
 	}
-	return out, true
+	return out
 }
 
 // libraryOf names the shared folder a song lies in: "/vol1/1000/音乐/…" is 音乐.

@@ -516,9 +516,7 @@ func (m *Manager) PlaylistSongs(ctx context.Context, id string) ([]library.Song,
 	res := []library.Song{}
 	for _, p := range out.Data.Playlists {
 		for _, x := range p.Songs {
-			if t, ok := toLibrarySong(x); ok {
-				res = append(res, t)
-			}
+			res = append(res, toLibrarySong(x))
 		}
 	}
 	return res, nil

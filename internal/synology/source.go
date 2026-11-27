@@ -39,24 +39,16 @@ func (m *Manager) Songs(ctx context.Context, page, size int) ([]library.Song, in
 	}
 	out := make([]library.Song, 0, len(songs))
 	for _, x := range songs {
-		if t, ok := toLibrarySong(x); ok {
-			out = append(out, t)
-		}
+		out = append(out, toLibrarySong(x))
 	}
 	return out, total, nil
 }
 
-// toLibrarySong converts one 群晖 song; ok is false for what speakers cannot play.
-func toLibrarySong(s song) (library.Song, bool) {
-	if s.ID == "" || strings.TrimSpace(s.Title) == "" {
-		return library.Song{}, false
-	}
+// toLibrarySong converts one 群晖 song; Format stays empty for what speakers cannot play.
+func toLibrarySong(s song) library.Song {
 	format := library.FormatOf(s.Additional.SongAudio.Codec)
 	if format == "" {
 		format = library.FormatOf(s.Additional.SongAudio.Container)
-	}
-	if format == "" {
-		return library.Song{}, false
 	}
 	artist := s.Additional.SongTag.Artist
 	if artist == "" {
@@ -74,7 +66,7 @@ func toLibrarySong(s song) (library.Song, bool) {
 		Size:       s.Additional.SongAudio.FileSize,
 		SampleRate: s.Additional.SongAudio.Frequency,
 		Root:       rootOf(s.Path),
-	}, true
+	}
 }
 
 // rootOf names the shared folder a song lies in: "/music/音乐/…" is 音乐.
