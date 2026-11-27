@@ -8,7 +8,7 @@ name: trackferry
 
 services:
   trackferry:
-    image: madrays/trackferry:latest
+    image: brian9909/trackferry-only-speaker:latest
     container_name: trackferry
     restart: unless-stopped
 
