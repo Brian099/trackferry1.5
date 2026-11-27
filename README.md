@@ -217,3 +217,12 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 感谢 [xiaomusic](https://github.com/hanxi/xiaomusic)、[fnmusic-miot](https://github.com/le5inioo/fnmusic-miot)、[songloft-plugin-miot](https://github.com/songloft-org/songloft-plugin-miot)、[fnos_music_ext](https://github.com/javycoder/fnos_music_ext) 和 [musicdl](https://github.com/CharlesPikachu/musicdl)。
 
 TrackFerry 以 [MIT](LICENSE) 许可开源。
+
+### 本分支的来源
+
+本仓库是 [madrays/trackferry](https://github.com/madrays/trackferry) 的1.5存档版本，版权归原作者 madrays 所有，依 MIT 许可使用。
+
+在此基础上，无本机播放，电视端等后续内容，功能仅限于纯粹的小米音箱语音点歌。
+
+**请注意**：如此版本遇到有严重bug或新功能需求时，进行的所有改动未经上游作者审核，也不代表上游的立场。这些改动只在本仓库维护，不会合并回上游。
+
