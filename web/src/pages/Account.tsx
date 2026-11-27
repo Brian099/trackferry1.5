@@ -3,6 +3,7 @@ import { api, ApiError, type Account as AccountT, type LinkResult, type UpdateSt
 import { Notice } from '../components/Notice';
 import { FeiniuCard } from '../components/Feiniu';
 import { RemoteCard } from '../components/RemoteCard';
+import { LibraryCard } from '../components/LibraryCard';
 import { HomeAssistant } from '../components/HomeAssistant';
 import { LockIcon, Setting, type Light } from '../components/Setting';
 import { SourceIcon } from '../components/SourceIcon';
@@ -15,9 +16,11 @@ import { LinkAccount } from '../components/LinkAccount';
 import { explainSync, timeAgo } from '../copy';
 import fish from '../assets/brand/fish-mark.webp';
 import word from '../assets/brand/wordmark.svg';
+import synologyIcon from '../assets/sources/synology.png';
+import navidromeIcon from '../assets/sources/navidrome.png';
 import './settings.css';
 
-const parts = [['feiniu', '飞牛音乐'], ['synology', '群晖音乐'], ['navidrome', 'Navidrome'], ['xiaomi', '小米账号'], ['sources', '线上音源'], ['playing', '连续播放'], ['home', 'Home Assistant'], ['password', '管理密码'], ['about', '关于']] as const;
+const parts = [['library', '曲库'], ['feiniu', '飞牛音乐'], ['synology', '群晖音乐'], ['navidrome', 'Navidrome'], ['xiaomi', '小米账号'], ['sources', '线上音源'], ['playing', '连续播放'], ['home', 'Home Assistant'], ['password', '管理密码'], ['about', '关于']] as const;
 type Part = (typeof parts)[number][0];
 
 export function Account({ account, build, startScanning, onChanged, onLogout }: {
@@ -88,14 +91,16 @@ export function Account({ account, build, startScanning, onChanged, onLogout }: 
       <div className="st-list">
       {explanation && <Notice tone={explanation.tone} title={`已关联新的登录，${explanation.title}`}>{explanation.body && <p>{explanation.body}</p>}</Notice>}
 
+      <LibraryCard />
+
       <FeiniuCard onLight={feiniuLight} />
 
-      <RemoteCard id="synology" title="群晖音乐" icon={<SourceIcon name="library" />} note="群晖 Audio Station 的曲库，和飞牛合并成一份"
+      <RemoteCard id="synology" title="群晖音乐" icon={<img className="src-icon" src={synologyIcon} alt="" draggable={false} />} note="群晖 Audio Station 的曲库，和飞牛合并成一份"
         otp get={() => api.synology().then((r) => r.synology)}
         link={(base, user, password, otp) => api.linkSynology(base, user, password, otp)}
         unlink={api.unlinkSynology} onLight={synologyLight} />
 
-      <RemoteCard id="navidrome" title="Navidrome" icon={<SourceIcon name="library" />} note="Navidrome（Subsonic）的曲库，和飞牛合并成一份"
+      <RemoteCard id="navidrome" title="Navidrome" icon={<img className="src-icon" src={navidromeIcon} alt="" draggable={false} />} note="Navidrome（Subsonic）的曲库，和飞牛合并成一份"
         get={() => api.navidrome().then((r) => r.navidrome)}
         link={(base, user, password) => api.linkNavidrome(base, user, password)}
         unlink={api.unlinkNavidrome} onLight={navidromeLight} />
