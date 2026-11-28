@@ -1,4 +1,4 @@
-// Package logx writes the container log: one readable line per event, and a few blocks that
+﻿// Package logx writes the container log: one readable line per event, and a few blocks that
 // are meant to be found at a glance.
 package logx
 
@@ -107,7 +107,7 @@ func Banner(w io.Writer, title string, rows ...Row) {
 // SetupCode prints the code that sets the admin password, so that it cannot be overlooked.
 func SetupCode(w io.Writer, code, url string) {
 	if url == "" {
-		url = "http://<NAS 地址>:18561"
+		url = "http://<NAS 地址>:18652"
 	}
 	fmt.Fprintf(w, "\n%s\n\n  首次使用，设置管理密码\n\n  初始化码　　%s\n  打开　　　　%s\n\n  只能用一次，设好密码后失效。\n  再看一次：docker exec trackferry /trackferry setup-code\n\n%s\n\n",
 		strings.Repeat("━", 52), code, url, strings.Repeat("━", 52))

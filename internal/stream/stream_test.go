@@ -1,4 +1,4 @@
-package stream
+﻿package stream
 
 import (
 	"io"
@@ -11,12 +11,12 @@ import (
 )
 
 func TestToneIsServedAndFetchRecorded(t *testing.T) {
-	s := New("http://nas:18561/", t.TempDir())
+	s := New("http://nas:18652/", t.TempDir())
 	h, err := s.Tone()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(h.URL, "http://nas:18561/stream/") || !strings.HasSuffix(h.URL, ".wav") {
+	if !strings.HasPrefix(h.URL, "http://nas:18652/stream/") || !strings.HasSuffix(h.URL, ".wav") {
 		t.Fatal(h.URL)
 	}
 	select {
@@ -24,7 +24,7 @@ func TestToneIsServedAndFetchRecorded(t *testing.T) {
 		t.Fatal("fetched before any request")
 	default:
 	}
-	path := strings.TrimPrefix(h.URL, "http://nas:18561")
+	path := strings.TrimPrefix(h.URL, "http://nas:18652")
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Header.Set("Range", "bytes=0-99")
 	rec := httptest.NewRecorder()

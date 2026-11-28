@@ -1,12 +1,12 @@
-# 配置
+﻿# 配置
 
 日常设置都在管理页里，这里只有启动时需要的几项。环境变量写在 `compose.yaml`，也可以写进 `data/config.yaml`（示例见 [config.example.yaml](../config.example.yaml)）。两边都有时环境变量优先。
 
 | 环境变量 | 配置文件 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `TRACKFERRY_URL` | `public_base_url` | 空 | 音箱取歌的局域网地址，如 `http://192.168.1.10:18561`。空着时接管不会开始 |
+| `TRACKFERRY_URL` | `public_base_url` | 空 | 音箱取歌的局域网地址，如 `http://192.168.1.10:18652`。空着时接管不会开始 |
 | `TRACKFERRY_TAKEOVER` | `takeover_speakers` | 空 | 允许设为接管的音箱，名字的一部分，逗号分隔；`*` 为全部；空为一台都不允许 |
-| `TRACKFERRY_LISTEN` | `listen` | `:18561` | 监听地址与端口。只监听一个地址时写成 `192.168.1.10:18561` |
+| `TRACKFERRY_LISTEN` | `listen` | `:18652` | 监听地址与端口。只监听一个地址时写成 `192.168.1.10:18652` |
 | `TRACKFERRY_UPDATE_CHECK` | `update_check` | 开 | `off` 关闭定时检查新版本；页面上的手动检查仍可用 |
 | 无，在管理页设置 | 无 | 直接连接 | 更新代理，“设置 → 关于”，只用于检查和下载更新 |
 | `TRACKFERRY_LOG` | 无 | 文字 | `json` 输出机器可读的日志 |

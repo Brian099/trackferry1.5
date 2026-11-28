@@ -1,4 +1,4 @@
-package api
+﻿package api
 
 import (
 	"context"
@@ -36,7 +36,7 @@ func (s *Server) target(w http.ResponseWriter, r *http.Request) (store.Device, b
 		return d, false
 	}
 	if err := s.Stream.Ready(); err != nil {
-		writeError(w, http.StatusConflict, "no_public_url", "音箱不知道从哪里取音频：请在 config.yaml 里设置 public_base_url（音箱能访问到的 NAS 地址，例如 http://192.168.1.10:18561）后重启")
+		writeError(w, http.StatusConflict, "no_public_url", "音箱不知道从哪里取音频：请在 config.yaml 里设置 public_base_url（音箱能访问到的 NAS 地址，例如 http://192.168.1.10:18652）后重启")
 		return d, false
 	}
 	return d, true

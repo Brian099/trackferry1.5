@@ -1,4 +1,4 @@
-# 参与贡献
+﻿# 参与贡献
 
 欢迎提交 Issue 和 Pull Request。报告问题前请先看[问题排查](docs/troubleshooting.md)，并去掉日志里的家庭地址、设备标识和对话内容。较大的改动建议先开 Issue 讨论。
 
@@ -26,7 +26,7 @@ docs/              文档与截图
 go run ./cmd/trackferry
 ```
 
-默认数据目录是 `/data`，本地用 `TRACKFERRY_CONFIG` 指向自己的配置文件来更改。改前端时另开 `cd web && npm run dev`，接口会转到 18561。
+默认数据目录是 `/data`，本地用 `TRACKFERRY_CONFIG` 指向自己的配置文件来更改。改前端时另开 `cd web && npm run dev`，接口会转到 18652。
 
 ## 测试
 

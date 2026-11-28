@@ -1,4 +1,4 @@
-# 部署教程
+﻿# 部署教程
 
 ## 准备
 
@@ -14,7 +14,7 @@
 在 NAS 上新建一个目录，例如 `/vol1/1000/Docker/trackferry`，放入仓库根目录的 `compose.yaml`。只有一处必须改：
 
 ```yaml
-TRACKFERRY_URL: "http://192.168.1.10:18561"
+TRACKFERRY_URL: "http://192.168.1.10:18652"
 ```
 
 换成这台 NAS 的局域网地址。音箱自己来这个地址取歌，所以不能写 `localhost`、`127.0.0.1`，也不要写只有外网能用的域名。
@@ -45,7 +45,7 @@ docker compose logs trackferry
   首次使用，设置管理密码
 
   初始化码　　ABCD2345
-  打开　　　　http://192.168.1.10:18561
+  打开　　　　http://192.168.1.10:18652
 
   只能用一次，设好密码后失效。
   再看一次：docker exec trackferry /trackferry setup-code
@@ -57,20 +57,20 @@ docker compose logs trackferry
 
 ## 第四步：放行端口
 
-默认使用 host 网络，程序直接监听 NAS 的 18561 端口。NAS 开着防火墙时，要允许局域网访问它，否则管理页打不开、音箱取不到歌。
+默认使用 host 网络，程序直接监听 NAS 的 18652 端口。NAS 开着防火墙时，要允许局域网访问它，否则管理页打不开、音箱取不到歌。
 
-- 飞牛 fnOS：系统设置的防火墙里放行 TCP 18561，来源限定为局域网。
+- 飞牛 fnOS：系统设置的防火墙里放行 TCP 18652，来源限定为局域网。
 - 使用 ufw（网段换成你自己的）：
 
   ```sh
-  sudo ufw allow from 192.168.1.0/24 to any port 18561 proto tcp
+  sudo ufw allow from 192.168.1.0/24 to any port 18652 proto tcp
   ```
 
 不要在路由器上把这个端口映射到外网。
 
 ## 第五步：完成设置
 
-1. 打开 `http://<NAS 地址>:18561`，填初始化码，设置管理密码。
+1. 打开 `http://<NAS 地址>:18652`，填初始化码，设置管理密码。
 2. 登录小米账号：米家扫码，或账号密码。选绑定了音箱的那个账号。
 3. 在“设置”登录飞牛音乐。填的是飞牛音乐里的用户名和密码；只用飞牛授权登录过的，先在飞牛音乐里设一个密码。
 4. 在“音箱”把一台设为“观察”，对它点几首歌，看“此刻”里的判断对不对。
@@ -168,7 +168,7 @@ docker compose -f compose.bridge.yaml up -d
 `compose.yaml` 缺少 `cap_add` 一行，照最新的 `compose.yaml` 补上。
 
 **管理页打不开**
-先在 NAS 上执行 `curl http://127.0.0.1:18561/healthz/live`。能通，是防火墙没放行，见第四步；不通，看日志。
+先在 NAS 上执行 `curl http://127.0.0.1:18652/healthz/live`。能通，是防火墙没放行，见第四步；不通，看日志。
 
 **日志写端口被占用（address already in use）**
 换一个端口，`TRACKFERRY_LISTEN` 和 `TRACKFERRY_URL` 一起改。

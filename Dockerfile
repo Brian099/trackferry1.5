@@ -1,4 +1,4 @@
-# Builds from source on one machine. Published images use build/Dockerfile.release instead.
+﻿# Builds from source on one machine. Published images use build/Dockerfile.release instead.
 # The runtime image is scratch: one static binary.
 # No "# syntax=" line: a NAS cannot always reach Docker Hub for the frontend image.
 
@@ -31,7 +31,7 @@ COPY --from=build /out/trackferry /trackferry
 COPY --from=build --chown=10001:10001 /out/run /run/trackferry
 # Starts as root only to hand /data over, then becomes PUID:PGID (10001 unless set).
 ENV TRACKFERRY_CONFIG=/data/config.yaml TZ=Asia/Shanghai
-EXPOSE 18561
+EXPOSE 18652
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/trackferry", "healthcheck"]
 ENTRYPOINT ["/trackferry"]
 CMD ["serve"]

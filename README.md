@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="docs/images/hero.svg" alt="TrackFerry" width="100%">
 
@@ -126,7 +126,7 @@ mkdir -p trackferry && cd trackferry && curl -fLO https://raw.githubusercontent.
 打开 `compose.yaml`，把 `TRACKFERRY_URL` 改成 NAS 的局域网地址：
 
 ```yaml
-TRACKFERRY_URL: "http://192.168.1.10:18561"
+TRACKFERRY_URL: "http://192.168.1.10:18652"
 ```
 
 **3. 启动**
@@ -143,7 +143,7 @@ docker exec trackferry /trackferry setup-code
 
 **5. 完成设置**
 
-打开 `http://<NAS 地址>:18561`，设置管理密码，登录小米账号和飞牛音乐。先把音箱设为“观察”，试过后再改成“接管”。
+打开 `http://<NAS 地址>:18652`，设置管理密码，登录小米账号和飞牛音乐。先把音箱设为“观察”，试过后再改成“接管”。
 
 **6. 装到手机**
 
@@ -153,7 +153,7 @@ iPhone 用 Safari 打开，分享 → 添加到主屏幕。安卓和电脑见[�
 > 接管前，先让 xiaomusic 等程序退出对这台音箱的控制。
 
 > [!TIP]
-> 管理页打不开或音箱不出声，多半是防火墙没有放行 TCP 18561。见[部署教程](docs/deployment.md#第四步放行端口)。
+> 管理页打不开或音箱不出声，多半是防火墙没有放行 TCP 18652。见[部署教程](docs/deployment.md#第四步放行端口)。
 
 <details>
 <summary><b>更新</b></summary>

@@ -1,4 +1,4 @@
-// Package config loads and validates TrackFerry's runtime configuration.
+﻿// Package config loads and validates TrackFerry's runtime configuration.
 package config
 
 import (
@@ -67,7 +67,7 @@ func (c Config) TakeoverAllowed(name string) bool {
 
 // Default returns the configuration used when no file is present.
 func Default() Config {
-	return Config{Listen: ":18561", DataDir: "/data", MusicDir: "/music", UpdateCheck: true}
+	return Config{Listen: ":18652", DataDir: "/data", MusicDir: "/music", UpdateCheck: true}
 }
 
 // Load reads path and then the environment, which wins. A missing file yields Default(); any
@@ -96,7 +96,7 @@ func (c Config) Validate() error {
 		errs = append(errs, err)
 	}
 	if u, err := url.Parse(c.PublicBaseURL); c.PublicBaseURL != "" && (err != nil || u.Scheme != "http" && u.Scheme != "https" || u.Host == "") {
-		errs = append(errs, fmt.Errorf("TRACKFERRY_URL %q: want something like http://192.168.1.10:18561", c.PublicBaseURL))
+		errs = append(errs, fmt.Errorf("TRACKFERRY_URL %q: want something like http://192.168.1.10:18652", c.PublicBaseURL))
 	}
 	if c.DataDir == "" {
 		errs = append(errs, errors.New("data_dir is required"))
@@ -120,7 +120,7 @@ func (c Config) LocalURL() (string, error) {
 	return "http://" + net.JoinHostPort(host, strconv.Itoa(port)), nil
 }
 
-// ListenPort extracts the TCP port from a listen address such as ":18561".
+// ListenPort extracts the TCP port from a listen address such as ":18652".
 func ListenPort(listen string) (int, error) {
 	_, portStr, err := net.SplitHostPort(listen)
 	if err != nil {

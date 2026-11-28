@@ -1,11 +1,11 @@
-# 可选的配置文件，放在 data/config.yaml。
+﻿# 可选的配置文件，放在 data/config.yaml。
 # 用 compose.yaml 里的环境变量就够了；两边都写时，环境变量优先。
 
 # 监听地址
-listen: ":18561"
+listen: ":18652"
 
 # 音箱取歌用的局域网地址（TRACKFERRY_URL）
-public_base_url: "http://192.168.1.10:18561"
+public_base_url: "http://192.168.1.10:18652"
 
 # 允许设为接管的音箱，写名字的一部分，"*" 为全部（TRACKFERRY_TAKEOVER）
 takeover_speakers: ["*"]

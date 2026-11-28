@@ -1,4 +1,4 @@
-// Package stream serves the audio TrackFerry pushes to speakers and records when a speaker
+﻿// Package stream serves the audio TrackFerry pushes to speakers and records when a speaker
 // fetches it. A speaker fetching our URL is the first hard evidence that a takeover
 // landed: the play call's receipt and the player status alone do not prove it.
 //
@@ -153,7 +153,7 @@ type item struct {
 
 // Server registers and serves streams.
 type Server struct {
-	base     string // public base URL the speakers can reach, e.g. http://10.0.0.2:18561
+	base     string // public base URL the speakers can reach, e.g. http://10.0.0.2:18652
 	musicDir string
 	Log      *slog.Logger // optional: one line per speaker request (never the token)
 	// Remote opens songs that are not files. It returns the URL extension (".flac") too;

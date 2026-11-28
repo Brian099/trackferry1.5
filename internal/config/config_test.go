@@ -1,4 +1,4 @@
-package config
+﻿package config
 
 import (
 	"os"
@@ -20,7 +20,7 @@ func TestMissingFileUsesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Listen != ":18561" || cfg.DataDir != "/data" || cfg.MusicDir != "/music" {
+	if cfg.Listen != ":18652" || cfg.DataDir != "/data" || cfg.MusicDir != "/music" {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
 }
@@ -58,17 +58,17 @@ func TestListenPort(t *testing.T) {
 }
 
 func TestEnvironmentWins(t *testing.T) {
-	t.Setenv("TRACKFERRY_URL", "http://192.0.2.1:18561/")
+	t.Setenv("TRACKFERRY_URL", "http://192.0.2.1:18652/")
 	t.Setenv("TRACKFERRY_TAKEOVER", "书房，客厅, ")
 	t.Setenv("TRACKFERRY_UPDATE_CHECK", "off")
 	cfg, err := Load(write(t, "public_base_url: http://192.0.2.9:1\ntakeover_speakers: [\"*\"]\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.PublicBaseURL != "http://192.0.2.1:18561" || len(cfg.TakeoverSpeakers) != 2 || cfg.TakeoverAllowed("主卧") || !cfg.TakeoverAllowed("书房音箱") || cfg.UpdateCheck {
+	if cfg.PublicBaseURL != "http://192.0.2.1:18652" || len(cfg.TakeoverSpeakers) != 2 || cfg.TakeoverAllowed("主卧") || !cfg.TakeoverAllowed("书房音箱") || cfg.UpdateCheck {
 		t.Fatalf("%+v", cfg)
 	}
-	t.Setenv("TRACKFERRY_URL", "192.0.2.1:18561")
+	t.Setenv("TRACKFERRY_URL", "192.0.2.1:18652")
 	if _, err := Load(write(t, "")); err == nil {
 		t.Fatal("an address without http:// was accepted")
 	}
@@ -76,11 +76,11 @@ func TestEnvironmentWins(t *testing.T) {
 
 func TestLocalURL(t *testing.T) {
 	for listen, want := range map[string]string{
-		":18561":             "http://127.0.0.1:18561",
-		"0.0.0.0:18561":      "http://127.0.0.1:18561",
-		"[::]:18561":         "http://127.0.0.1:18561",
-		"192.168.1.10:18561": "http://192.168.1.10:18561",
-		"[fd00::1]:18561":    "http://[fd00::1]:18561",
+		":18652":             "http://127.0.0.1:18652",
+		"0.0.0.0:18652":      "http://127.0.0.1:18652",
+		"[::]:18652":         "http://127.0.0.1:18652",
+		"192.168.1.10:18652": "http://192.168.1.10:18652",
+		"[fd00::1]:18652":    "http://[fd00::1]:18652",
 	} {
 		if got, err := (Config{Listen: listen}).LocalURL(); err != nil || got != want {
 			t.Errorf("%s: %s %v", listen, got, err)

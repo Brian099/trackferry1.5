@@ -1,4 +1,4 @@
-# 备选：不能用 host 网络时，改用端口映射。一般不需要它。
+﻿# 备选：不能用 host 网络时，改用端口映射。一般不需要它。
 #
 #   docker compose -f compose.bridge.yaml up -d
 #
@@ -11,7 +11,7 @@ services:
     extends: { file: compose.yaml, service: trackferry }
     network_mode: !reset null
     ports:
-      - "18561:18561"
+      - "18652:18652"
     volumes:
       - relay:/run/trackferry
 

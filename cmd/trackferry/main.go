@@ -50,7 +50,7 @@ import (
 var (
 	version = "dev"
 	commit  = "unknown"
-	repo    = "madrays/trackferry" // where releases are published
+	repo    = "Brian099/trackferry1.5" // where releases are published
 )
 
 func main() {
